@@ -48,7 +48,7 @@ public:
     const on_session_event_t &onSessionEvent,
     const on_new_leader_event_t &onNewLeaderEvent,
     const on_admin_response_t &onAdminResponse,
-    int64_t clusterSessionId,
+    std::int64_t clusterSessionId,
     std::shared_ptr<Subscription> subscription,
     int fragmentLimit = 10);
 
@@ -62,7 +62,7 @@ public:
 private:
   FragmentAssembler m_fragmentAssembler;
   fragment_handler_t m_fragmentHandler;
-  int64_t m_clusterSessionId;
+  std::int64_t m_clusterSessionId;
   std::shared_ptr<Subscription> m_subscription;
   on_session_message_t m_onSessionMessage;
   on_session_event_t m_onSessionEvent;
