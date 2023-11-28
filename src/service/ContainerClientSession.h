@@ -39,6 +39,8 @@ class ContainerClientSession
     //    return encodedPrincipal;
     //}
 
+    void connect(std::shared_ptr<Aeron> aeron);
+
     void close()
     {
       if (nullptr != m_clusteredServiceAgent->getClientSession(m_id))
@@ -47,10 +49,49 @@ class ContainerClientSession
         }
     }
 
-    bool isClosing()
+    void markClosing()
+    {
+      m_isClosing = true;
+    }
+
+    void resetClosing()
+    {
+      m_isClosing = false;
+    }
+
+
+    bool isClosing() const
     {
         return m_isClosing;
     }
+
+    void disconnect()
+    {
+      if (m_responsePublication != nullptr)
+      {
+	m_responsePublication->close();
+	m_responsePublication = nullptr;
+      }
+      m_responseRegistration = NULL_VALUE;
+    }
+
+    std::int64_t offer(AtomicBuffer& buffer)
+    {
+        return m_clusteredServiceAgent->offer(m_id, m_responsePublication, buffer);
+    }
+
+    /*
+
+    public long offer(final DirectBufferVector[] vectors)
+    {
+        return clusteredServiceAgent.offer(id, responsePublication, vectors);
+    }
+
+    public long tryClaim(final int length, final BufferClaim bufferClaim)
+    {
+        return clusteredServiceAgent.tryClaim(id, responsePublication, length, bufferClaim);
+    }
+    */
 
  private: 
     std::int64_t m_id;
@@ -59,6 +100,8 @@ class ContainerClientSession
     //private final byte[] encodedPrincipal;
 
     std::shared_ptr<ClusteredServiceAgent> m_clusteredServiceAgent;
+
+    std::int64_t m_responseRegistration;
     std::shared_ptr<ExclusivePublication> m_responsePublication;
     bool m_isClosing;
 };

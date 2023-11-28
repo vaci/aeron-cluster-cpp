@@ -13,11 +13,8 @@ namespace aeron { namespace cluster { namespace service {
  */
 class ConsensusModuleProxy
 {
-  explicit ConsensusModuleProxy(std::shared_ptr<ExclusivePublication> publication) :
-    m_publication(publication)
-  {
-  }
-  
+  explicit ConsensusModuleProxy(std::shared_ptr<ExclusivePublication> publication);
+
   bool closeSession(std::int64_t clusterSessionId);
   
   /**
@@ -40,6 +37,14 @@ class ConsensusModuleProxy
   void close()
   {
     m_publication->close();
+  }
+
+  std::int64_t offer(AtomicBuffer& header, AtomicBuffer& buffer)
+  {
+    std::array<AtomicBuffer, 2> buffers;
+    buffers[0] = header;
+    buffers[1] = buffer;
+    return m_publication->offer(buffers);
   }
 
 private:

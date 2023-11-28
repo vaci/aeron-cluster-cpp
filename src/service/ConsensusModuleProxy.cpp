@@ -30,6 +30,11 @@ inline static Codec &wrapAndApplyHeader(Codec &codec, AtomicBuffer &buffer)
 }
 
 
+ConsensusModuleProxy::ConsensusModuleProxy(std::shared_ptr<ExclusivePublication> publication) :
+  m_publication(publication)
+{
+}
+
 bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
 {
   std::uint64_t length = MessageHeader::encodedLength() + client::CloseSession::sbeBlockLength();
