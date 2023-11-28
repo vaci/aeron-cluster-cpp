@@ -1,5 +1,5 @@
-#ifndef AERON_CLUSTER_EGRESS_ADAPTER_H
-#define AERON_CLUSTER_EGRESS_ADAPTER_H
+#ifndef AERON_CLUSTER_EGRESS_POLLER_H
+#define AERON_CLUSTER_EGRESS_POLLER_H
 
 #include "Aeron.h"
 #include "ControlledFragmentAssembler.h"
@@ -20,57 +20,68 @@ public:
     return m_subscription;
   }
 
-  //std::shared_ptr<Image> egressImage()
-  //{
-  //  return m_egressImage;
-  // }
+  Image egressImage()
+  {
+    return *m_egressImage;
+  }
 
-  int32_t templateId() const
+  inline int32_t templateId() const
   {
     return m_templateId;
   }
 
-  int64_t clusterSessionId() const
+  inline int64_t clusterSessionId() const
   {
     return m_clusterSessionId;
   }
 
-  int64_t correlationId() const
+  inline int64_t correlationId() const
   {
     return m_correlationId;
   }
 
-  int64_t leaderMemberId() const
+  inline int64_t leadershipTermId() const
   {
     return m_leaderMemberId;
   }
 
-  EventCode::Value eventCode() const
+  
+  inline int64_t leaderMemberId() const
+  {
+    return m_leaderMemberId;
+  }
+
+  inline EventCode::Value eventCode() const
   {
     return m_eventCode;
   }
 
-  int32_t version() const
+  inline int32_t version() const
   {
     return m_version;
   }
 
-  const std::string& detail() const
+  inline const std::string &detail() const
   {
     return m_detail;
   }
 
-  const char* encodedChallenge() const
+  /**
+   * Get the encoded challenge of the last challenge.
+   *
+   * @return the encoded challenge of the last challenge.
+   */
+  inline std::pair<const char *, std::uint32_t> encodedChallenge()
   {
     return m_encodedChallenge;
   }
 
-  bool isPollComplete() const
+  inline bool isPollComplete() const
   {
     return m_isPollComplete;
   }
 
-  bool isChallenged() const
+  inline bool isChallenged() const
   {
     return m_isChallenged;
   }
@@ -78,11 +89,12 @@ public:
   int32_t poll();
 
   ControlledPollAction onFragment(AtomicBuffer buffer, util::index_t offset, util::index_t length, Header& header);
+
 private:
   std::shared_ptr<Subscription> m_subscription;
   int32_t m_fragmentLimit;
   ControlledFragmentAssembler m_fragmentAssembler;
-  //std::shared_ptr<Image> m_egressImage;
+  std::unique_ptr<Image> m_egressImage;
   int32_t m_templateId;
   int64_t m_clusterSessionId;
   int64_t m_correlationId;
@@ -91,7 +103,7 @@ private:
   EventCode::Value m_eventCode;
   int32_t m_version;
   std::string m_detail;
-  char* m_encodedChallenge;
+  std::pair<const char *, std::uint32_t> m_encodedChallenge = { nullptr, 0 };
   bool m_isPollComplete;
   bool m_isChallenged;
 };

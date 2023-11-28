@@ -3,7 +3,7 @@
 , stdenv ? pkgs.stdenv
 , debug ? true
 , fetchMavenArtifact ? pkgs.fetchMavenArtifact
-, jdk11 ? pkgs.jdk11
+, jdk ? pkgs.jdk
 , lib ? pkgs.lib
 }:
 
@@ -11,22 +11,7 @@
 let
   name = "aeron-cluster-cpp";
 
-  add-links = ''
-    ln --symbolic --force --target-directory=src \
-      "${pkgs.ekam.src}/src/ekam/rules"
-
-    mkdir --parents src/codecs
-    ln --symbolic --force --target-directory=src/codecs/ \
-      "${pkgs.aeron.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-codecs.xml"
-    ln --symbolic --force --target-directory=src/codecs \
-      "${pkgs.aeron.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-mark-codecs.xml"
-
-    java -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.client uk.co.real_logic.sbe.SbeTool src/codecs/aeron-cluster-codecs.xml
-
-    java -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.client uk.co.real_logic.sbe.SbeTool src/codecs/aeron-cluster-mark-codecs.xml
-
-  '';
-
+  aeron = pkgs.callPackage ./../pkgs/aeron { };
   aeron-cpp = pkgs.callPackage ./../pkgs/aeron-cpp { };
   aeron-archive-cpp = pkgs.callPackage ./../pkgs/aeron-archive-cpp { };
   aeron-cluster = pkgs.callPackage ./../pkgs/aeron-cluster.nix { };
@@ -39,7 +24,37 @@ let
   };
 
   sbeAll = sbeAll_1_29_0;
- 
+
+  slf4j = fetchMavenArtifact {
+    groupId = "org.slf4j";
+    version = "2.0.9";
+    artifactId = "slf4j-api";
+    hash = "sha512-Bp5t3OeWF+N9YXWBIMfmg0juYvJVeBlIk3977DBY5GJEAm1/ahHpD7wVzUKIxLsazuTyQq9SHHIanmigXmTVJg==";
+  };
+
+  sbeTool = "uk.co.real_logic.sbe.SbeTool";
+
+  add-links = ''
+    ln --symbolic --force --target-directory=src \
+      "${pkgs.ekam.src}/src/ekam/rules"
+
+    mkdir --parents src/codecs
+    ln --symbolic --force --target-directory=src/codecs/ \
+      "${pkgs.aeron.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-codecs.xml"
+
+    cp --target-directory=src/codecs \
+      "${pkgs.aeron.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-mark-codecs.xml"
+
+    # fixup for C++ reserved token
+    sed -i 's/\"NULL\"/\"NULL_COMPONENT\"/g' src/codecs/aeron-cluster-mark-codecs.xml
+
+    "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.client "${sbeTool}" src/codecs/aeron-cluster-codecs.xml
+
+    "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.service "${sbeTool}" src/codecs/aeron-cluster-mark-codecs.xml
+
+    "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=java -Dsbe.target.language=Java -Dsbe.target.namespace=com.aeroncookbook.cluster.async.sbe "${sbeTool}" resources/messages.xml
+  '';
+
 in
 
 stdenv.mkDerivation {
@@ -48,10 +63,12 @@ stdenv.mkDerivation {
   src = ./.;
 
   buildInputs = with pkgs; [
+    aeron
     aeron-cpp
     aeron-archive-cpp
     capnproto
     openssl
+    slf4j
     zlib
   ];
 
@@ -59,7 +76,7 @@ stdenv.mkDerivation {
     clang-tools
     ekam
     gtest
-    jdk11
+    jdk
     which
   ];
 
@@ -71,6 +88,8 @@ stdenv.mkDerivation {
   ];
 
   SBE_JAR = sbeAll.jar;
+
+  jdk = jdk;
 
   shellHook = add-links;
 

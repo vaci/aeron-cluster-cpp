@@ -28,8 +28,7 @@ EgressPoller::EgressPoller(
   int32_t fragmentLimit):
   m_subscription(subscription),
   m_fragmentLimit(fragmentLimit),
-  m_fragmentAssembler(fragmentHandler(*this)),
-  m_encodedChallenge(nullptr)
+  m_fragmentAssembler(fragmentHandler(*this))
 {
 }
 
@@ -45,15 +44,10 @@ int EgressPoller::poll()
     m_templateId = -1;
     m_version = 0;
     m_eventCode = EventCode::Value::NULL_VALUE;
-    m_detail = "";
-    if (m_encodedChallenge != nullptr) {
-      delete [] m_encodedChallenge;
-      m_encodedChallenge = nullptr;
-    }
+    m_encodedChallenge = {};
   }
 
-  //return m_subscription->poll(m_fragmentAssembler, m_fragmentLimit);
-  return 0;
+  return m_subscription->controlledPoll(m_fragmentAssembler.handler(), m_fragmentLimit);
 }
 
 ControlledPollAction EgressPoller::onFragment(AtomicBuffer buffer, util::index_t offset, util::index_t length, Header& header)
@@ -107,7 +101,7 @@ ControlledPollAction EgressPoller::onFragment(AtomicBuffer buffer, util::index_t
     m_version = sessionEvent.version();
     m_detail = sessionEvent.detail();
     m_isPollComplete = true;
-    //m_egressImage = *reinterpret_cast<Image*>(header.context());
+    m_egressImage = std::make_unique<Image>(*reinterpret_cast<Image*>(header.context()));
     return ControlledPollAction::BREAK;
   }
   else if (m_templateId == NewLeaderEvent::sbeTemplateId())
@@ -133,8 +127,15 @@ ControlledPollAction EgressPoller::onFragment(AtomicBuffer buffer, util::index_t
       static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
       msgHeader.blockLength(),
       msgHeader.version());
-    m_encodedChallenge = new char[challenge.encodedChallengeLength()];
-    challenge.getEncodedChallenge(m_encodedChallenge, challenge.encodedChallengeLength());
+
+    const std::uint32_t encodedChallengeLength = challenge.encodedChallengeLength();
+    char *encodedBuffer = new char[encodedChallengeLength];
+    challenge.getEncodedChallenge(encodedBuffer, encodedChallengeLength);
+
+    m_encodedChallenge.first = encodedBuffer;
+    m_encodedChallenge.second = encodedChallengeLength;
+    m_encodedChallenge.second = challenge.encodedChallengeLength();
+
     m_clusterSessionId = challenge.clusterSessionId();
     m_correlationId = challenge.correlationId();
     m_isPollComplete = true;
