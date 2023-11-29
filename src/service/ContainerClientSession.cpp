@@ -1,4 +1,5 @@
 #include "ContainerClientSession.h"
+#include "ClusteredServiceAgent.h"
 
 namespace aeron { namespace cluster { namespace service {
 
@@ -30,6 +31,19 @@ void ContainerClientSession::connect(std::shared_ptr<Aeron> aeron)
     // clusteredServiceAgent.handleError(new ClusterException(
     //				  "failed to connect session response publication: " + ex.getMessage(), AeronException.Category.WARN));
   }
+}
+
+void ContainerClientSession::close()
+{
+  if (nullptr != m_clusteredServiceAgent->getClientSession(m_id))
+  {
+    m_clusteredServiceAgent->closeClientSession(m_id);
+  }
+}
+
+std::int64_t ContainerClientSession::offer(AtomicBuffer& buffer)
+{
+  return m_clusteredServiceAgent->offer(buffer);
 }
 
 }}}

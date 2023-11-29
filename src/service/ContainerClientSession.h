@@ -4,83 +4,74 @@
 #include <Aeron.h>
 #include <cstdint>
 #include "ClientSession.h"
-#include "ClusteredServiceAgent.h"
 
 namespace aeron { namespace cluster { namespace service {
+
+class ClusteredServiceAgent;
 
 class ContainerClientSession
   : public ClientSession
 {
- public:
-    ContainerClientSession(
-      std::int64_t sessionId,
-      std::int32_t responseStreamId,
-      const std::string &responseChannel,
-      //final byte[] encodedPrincipal,
-      std::shared_ptr<ClusteredServiceAgent> clusteredServiceAgent);
+public:
+  ContainerClientSession(
+    std::int64_t sessionId,
+    std::int32_t responseStreamId,
+    const std::string &responseChannel,
+    //final byte[] encodedPrincipal,
+    std::shared_ptr<ClusteredServiceAgent> clusteredServiceAgent);
 
-    inline std::int64_t id() const
-    {
-      return m_id;
-    }
+  inline std::int64_t id() const
+  {
+    return m_id;
+  }
 
-    inline std::int32_t responseStreamId() const
-    {
-      return m_responseStreamId;
-    }
+  inline std::int32_t responseStreamId() const
+  {
+    return m_responseStreamId;
+  }
 
-    inline const std::string &responseChannel() const
-    {
-        return m_responseChannel;
-    }
+  inline const std::string &responseChannel() const
+  {
+    return m_responseChannel;
+  }
 
-    //public byte[] encodedPrincipal()
-    //{
-    //    return encodedPrincipal;
-    //}
+  //public byte[] encodedPrincipal()
+  //{
+  //    return encodedPrincipal;
+  //}
 
-    void connect(std::shared_ptr<Aeron> aeron);
+  void connect(std::shared_ptr<Aeron> aeron);
 
-    void close()
-    {
-      if (nullptr != m_clusteredServiceAgent->getClientSession(m_id))
-        {
-	  m_clusteredServiceAgent->closeClientSession(m_id);
-        }
-    }
+  void close();
 
-    void markClosing()
-    {
-      m_isClosing = true;
-    }
+  inline void markClosing()
+  {
+    m_isClosing = true;
+  }
 
-    void resetClosing()
-    {
-      m_isClosing = false;
-    }
+  inline void resetClosing()
+  {
+    m_isClosing = false;
+  }
 
+  inline bool isClosing() const
+  {
+    return m_isClosing;
+  }
 
-    bool isClosing() const
-    {
-        return m_isClosing;
-    }
-
-    void disconnect()
-    {
-      if (m_responsePublication != nullptr)
+  inline void disconnect()
+  {
+    if (m_responsePublication != nullptr)
       {
 	m_responsePublication->close();
 	m_responsePublication = nullptr;
       }
-      m_responseRegistration = NULL_VALUE;
-    }
+    m_responseRegistration = NULL_VALUE;
+  }
 
-    std::int64_t offer(AtomicBuffer& buffer)
-    {
-        return m_clusteredServiceAgent->offer(m_id, m_responsePublication, buffer);
-    }
+  std::int64_t offer(AtomicBuffer& buffer);
 
-    /*
+  /*
 
     public long offer(final DirectBufferVector[] vectors)
     {
