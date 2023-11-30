@@ -7,7 +7,7 @@ namespace aeron { namespace cluster { namespace service {
 using ClusterException = client::ClusterException;
 
 ClusteredServiceAgent::AsyncConnect::AsyncConnect(
-  ClusteredServiceContext & ctx,
+  Context & ctx,
   std::int64_t publicationId,
   std::int64_t subscriptionId) :
   m_ctx(ctx),
@@ -55,7 +55,7 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
   return {};
 }
 
-std::shared_ptr<ClusteredServiceAgent::AsyncConnect> ClusteredServiceAgent::asyncConnect(ClusteredServiceContext &ctx)
+std::shared_ptr<ClusteredServiceAgent::AsyncConnect> ClusteredServiceAgent::asyncConnect(Context &ctx)
 {
   ctx.conclude();
 
@@ -72,7 +72,7 @@ std::shared_ptr<ClusteredServiceAgent::AsyncConnect> ClusteredServiceAgent::asyn
 }
 
 ClusteredServiceAgent::ClusteredServiceAgent(
-  ClusteredServiceContext &ctx,
+  Context &ctx,
   std::shared_ptr<ConsensusModuleProxy> proxy,
   std::shared_ptr<ServiceAdapter> serviceAdapter) :
   m_ctx(ctx),

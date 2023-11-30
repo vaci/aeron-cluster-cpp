@@ -10,7 +10,7 @@
 #include "Cluster.h"
 #include "ServiceAdapter.h"
 #include "ClusteredService.h"
-#include "ClusteredServiceContext.h"
+#include "ClusteredServiceConfiguration.h"
 #include "aeron_cluster_client/SessionMessageHeader.h"
 
 #include <unordered_map>
@@ -24,7 +24,7 @@ class ClusteredServiceAgent :
 {
 public:
   explicit ClusteredServiceAgent(
-    ClusteredServiceContext &context,
+    Context &context,
      std::shared_ptr<ConsensusModuleProxy> proxy,
      std::shared_ptr<ServiceAdapter> serviceadapter);
   std::shared_ptr<ClientSession> getClientSession(std::int64_t clusterSessionId) override;
@@ -40,7 +40,7 @@ public:
     return m_consensusModuleProxy->cancelTimer(correlationId);
   }
 
-  inline ClusteredServiceContext &context() {
+  inline Context &context() {
     return m_ctx;
   }
 
@@ -52,14 +52,14 @@ public:
   struct AsyncConnect
   {
     AsyncConnect(
-      ClusteredServiceContext&,
+      Context &,
       std::int64_t publicationId,
       std::int64_t subscriptionId);
 
     std::shared_ptr<ClusteredServiceAgent> poll();
 
   private:
-    ClusteredServiceContext &m_ctx;
+    Context &m_ctx;
     std::shared_ptr<Aeron> m_aeron;
     std::int64_t m_publicationId;
     std::shared_ptr<ExclusivePublication> m_publication;
@@ -70,10 +70,10 @@ public:
     int m_step = 0;
   };
 
-  static std::shared_ptr<AsyncConnect> asyncConnect(ClusteredServiceContext &ctx);
+  static std::shared_ptr<AsyncConnect> asyncConnect(Context &ctx);
 
 private:
-  ClusteredServiceContext &m_ctx;
+  Context &m_ctx;
   std::shared_ptr<Aeron> m_aeron;
   SessionMessageHeader m_header;
   std::int64_t m_clusterTime;
