@@ -5,16 +5,18 @@
 
 namespace aeron { namespace cluster { namespace service {
 
-class ClusterCounters {
+namespace ClusterCounters {
 
-  static std::int64_t allocate(
-    std::shared_ptr<Aeron> aeron,
-    const std::string &name,
-    std::int32_t typeId,
-    std::int32_t clusterId);
+std::int64_t allocate(
+  std::shared_ptr<Aeron> aeron,
+  const std::string &name,
+  std::int32_t typeId,
+  std::int32_t clusterId);
 
-  static std::int32_t find(CountersReader& counters, std::int32_t typeId, std::int32_t clusterId);
-};
+std::shared_ptr<Counter> find(CountersReader& counters, std::int32_t typeId, std::int32_t clusterId);
+
+}
 
 }}}
+
 #endif

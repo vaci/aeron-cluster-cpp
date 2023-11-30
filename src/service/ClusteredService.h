@@ -15,7 +15,7 @@ class ClusteredService
 public:
   virtual ~ClusteredService();
 
-  virtual void onStart(Cluster cluster, Image snapshotImage) = 0;
+  virtual void onStart(Cluster &cluster, std::shared_ptr<Image> snapshotImage) = 0;
 
   /**
    * A session has been opened for a client to the cluster.

@@ -2,7 +2,9 @@
 
 namespace aeron { namespace cluster { namespace service {
 
-std::int64_t ClusterCounters::allocate(
+namespace ClusterCounters {
+
+std::int64_t allocate(
   std::shared_ptr<Aeron> aeron,
   const std::string &name,
   std::int32_t typeId,
@@ -13,8 +15,7 @@ std::int64_t ClusterCounters::allocate(
     typeId, reinterpret_cast<std::uint8_t*>(&clusterId), sizeof(clusterId), label);
 }
 
-
-std::int32_t ClusterCounters::find(CountersReader& counters, std::int32_t typeId, std::int32_t clusterId)
+std::shared_ptr<Counter> find(CountersReader& counters, std::int32_t typeId, std::int32_t clusterId)
 {
   auto buffer = counters.metaDataBuffer();
 
@@ -27,7 +28,7 @@ std::int32_t ClusterCounters::find(CountersReader& counters, std::int32_t typeId
       if (counters.getCounterTypeId(i) == typeId &&
 	  buffer.getInt32(CountersReader::metadataOffset(i) + CountersReader::KEY_OFFSET) == clusterId)
       {
-	return i;
+	return std::make_shared<Counter>(counters, counters.getCounterRegistrationId(i), i);
       }
     }
     else if (CountersReader::RECORD_UNUSED == counterState)
@@ -36,7 +37,9 @@ std::int32_t ClusterCounters::find(CountersReader& counters, std::int32_t typeId
     }
   }
 
-  return NULL_VALUE;
+  return nullptr;
+}
+
 }
 
 }}}

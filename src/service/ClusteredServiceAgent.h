@@ -14,8 +14,11 @@
 #include "aeron_cluster_client/SessionMessageHeader.h"
 
 #include <unordered_map>
+#include <vector>
 
 namespace aeron { namespace cluster { namespace service {
+
+using AeronArchive = archive::client::AeronArchive;
 
 using SessionMessageHeader = client::SessionMessageHeader;
 
@@ -49,6 +52,10 @@ public:
     return m_role;
   }
 
+  void onStart();
+
+  void onUnavailableCounter(CountersReader &countersReader, std::int64_t registrationId, std::int32_t counterId);
+
   struct AsyncConnect
   {
     AsyncConnect(
@@ -75,10 +82,13 @@ public:
 private:
   Context &m_ctx;
   std::shared_ptr<Aeron> m_aeron;
-  SessionMessageHeader m_header;
-  std::int64_t m_clusterTime;
+  nano_clock_t m_nanoClock;
+  epoch_clock_t m_epochClock;
+  SessionMessageHeader m_sessionMessageHeader;
+  std::int64_t m_clusterTime = NULL_VALUE;
   bool m_isAbort;
-  bool m_isServiceActive;
+  bool m_isServiceActive = false;
+  std::int64_t m_lastSlowTickNs;
   std::int32_t m_serviceId;
   std::int32_t m_memberId = NULL_VALUE;
   std::int64_t m_ackId = 0;
@@ -88,14 +98,32 @@ private:
   std::shared_ptr<ConsensusModuleProxy> m_consensusModuleProxy;
   std::shared_ptr<ServiceAdapter> m_serviceAdapter;
   std::unordered_map<std::int64_t, std::shared_ptr<ContainerClientSession>> m_sessionByIdMap;
+  std::vector<std::shared_ptr<ContainerClientSession>> m_sessions;
   bool m_isBackgroundInvocation;
   std::string m_subscriptionAlias;
   const char *m_activeLifecycleCallbackName = nullptr;
 
   Cluster::Role m_role = Cluster::Role::FOLLOWER;
   std::int64_t m_requestedAckPosition = archive::client::NULL_POSITION;
-  
+  int m_timeUnit;
+
+  std::shared_ptr<Counter> m_commitPosition;
+  std::int64_t m_markFileUpdateDeadlineMs = 1;
+
+  void role(Cluster::Role newRole);
   void checkForValidInvocation();
+  void recoverState(CountersReader& counters);
+  void loadSnapshot(std::int64_t recordingId);
+  void loadState(std::shared_ptr<Image> image, std::shared_ptr<AeronArchive> archive);
+  void disconnectEgress();
+  void snapshotState(
+    std::shared_ptr<ExclusivePublication>,
+    std::int64_t logPosition,
+    std::int64_t leadershipTermId);
+		     
+
+  std::int64_t onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId);
+  bool checkForClockTick(std::int64_t nowNs);
 };
 
 }}}

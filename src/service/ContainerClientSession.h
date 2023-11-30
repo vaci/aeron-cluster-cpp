@@ -20,7 +20,7 @@ public:
     //final byte[] encodedPrincipal,
     std::shared_ptr<ClusteredServiceAgent> clusteredServiceAgent);
 
-  inline std::int64_t id() const
+  inline std::int64_t id() const override
   {
     return m_id;
   }
@@ -30,7 +30,7 @@ public:
     return m_responseStreamId;
   }
 
-  inline const std::string &responseChannel() const
+  inline const std::string &responseChannel() const override
   {
     return m_responseChannel;
   }

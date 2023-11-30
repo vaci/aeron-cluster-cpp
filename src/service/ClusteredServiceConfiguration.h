@@ -3,6 +3,7 @@
 
 #include <string>
 #include "Aeron.h"
+#include "client/ArchiveConfiguration.h"
 #include "ClusteredService.h"
 #include "aeron/aeron_counters.h"
 
@@ -203,96 +204,6 @@ constexpr std::int32_t COMMIT_POSITION_TYPE_ID = AERON_COUNTER_CLUSTER_COMMIT_PO
 constexpr std::int32_t CLUSTERED_SERVICE_ERROR_COUNT_TYPE_ID =
   AERON_COUNTER_CLUSTER_CLUSTERED_SERVICE_ERROR_COUNT_TYPE_ID;
 
-/**
- * The value {@link #CLUSTER_ID_DEFAULT} or system property {@link #CLUSTER_ID_PROP_NAME} if set.
- *
- * @return {@link #CLUSTER_ID_DEFAULT} or system property {@link #CLUSTER_ID_PROP_NAME} if set.
- */
-static std::int32_t clusterId()
-{
-  // TODO
-  return 0;
-  //return Integer.getInteger(CLUSTER_ID_PROP_NAME, CLUSTER_ID_DEFAULT);
-}
-
-  /**
-   * The value {@link #SERVICE_ID_DEFAULT} or system property {@link #SERVICE_ID_PROP_NAME} if set.
-   *
-   * @return {@link #SERVICE_ID_DEFAULT} or system property {@link #SERVICE_ID_PROP_NAME} if set.
-   */
-  static std::int32_t serviceId()
-  {
-    // TODO
-    return 0;
-    //return Integer.getInteger(SERVICE_ID_PROP_NAME, SERVICE_ID_DEFAULT);
-  }
-
-  /**
-   * The value {@link #SERVICE_NAME_DEFAULT} or system property {@link #SERVICE_NAME_PROP_NAME} if set.
-   *
-   * @return {@link #SERVICE_NAME_DEFAULT} or system property {@link #SERVICE_NAME_PROP_NAME} if set.
-   */
-  static std::string serviceName()
-  {
-    // TODO
-    return "";
-    //return System.getProperty(SERVICE_NAME_PROP_NAME, SERVICE_NAME_DEFAULT);
-  }
-
-  /**
-   * The value {@link #REPLAY_CHANNEL_DEFAULT} or system property {@link #REPLAY_CHANNEL_PROP_NAME} if set.
-   *
-   * @return {@link #REPLAY_CHANNEL_DEFAULT} or system property {@link #REPLAY_CHANNEL_PROP_NAME} if set.
-   */
-  static std::string replayChannel()
-  {
-    // TODO
-    return "";
-    //return System.getProperty(REPLAY_CHANNEL_PROP_NAME, REPLAY_CHANNEL_DEFAULT);
-  }
-
-  /**
-   * The value {@link #REPLAY_STREAM_ID_DEFAULT} or system property {@link #REPLAY_STREAM_ID_PROP_NAME}
-   * if set.
-   *
-   * @return {@link #REPLAY_STREAM_ID_DEFAULT} or system property {@link #REPLAY_STREAM_ID_PROP_NAME}
-   * if set.
-   */
-  static std::int32_t replayStreamId()
-  {
-    // TODO
-    return 0;
-    //return Integer.getInteger(REPLAY_STREAM_ID_PROP_NAME, REPLAY_STREAM_ID_DEFAULT);
-  }
-
-  /**
-   * The value {@link #CONTROL_CHANNEL_DEFAULT} or system property
-   * {@link #CONTROL_CHANNEL_PROP_NAME} if set.
-   *
-   * @return {@link #CONTROL_CHANNEL_DEFAULT} or system property
-   * {@link #CONTROL_CHANNEL_PROP_NAME} if set.
-   */
-  static std::string controlChannel()
-  {
-    // TODO
-    return "";
-    //return System.getProperty(CONTROL_CHANNEL_PROP_NAME, CONTROL_CHANNEL_DEFAULT);
-  }
-
-  /**
-   * The value {@link #CONSENSUS_MODULE_STREAM_ID_DEFAULT} or system property
-   * {@link #CONSENSUS_MODULE_STREAM_ID_PROP_NAME} if set.
-   *
-   * @return {@link #CONSENSUS_MODULE_STREAM_ID_DEFAULT} or system property
-   * {@link #CONSENSUS_MODULE_STREAM_ID_PROP_NAME} if set.
-   */
-  static std::int32_t consensusModuleStreamId()
-  {
-    // TODO
-    return 0;;
-    //return Integer.getInteger(CONSENSUS_MODULE_STREAM_ID_PROP_NAME, CONSENSUS_MODULE_STREAM_ID_DEFAULT);
-  }
-
   /**
    * The value {@link #SERVICE_STREAM_ID_DEFAULT} or system property
    * {@link #SERVICE_STREAM_ID_PROP_NAME} if set.
@@ -349,9 +260,20 @@ public:
     return m_aeron;
   }
 
-  inline this_t &serviceId(std::shared_ptr<Aeron> aeron)
+  inline this_t &aeron(std::shared_ptr<Aeron> aeron)
   {
     m_aeron = aeron;
+    return *this;
+  }
+
+  inline const std::string &aeronDirectoryName() const
+  {
+    return m_aeronDirectoryName;
+  }
+
+  inline this_t &aeronDirectoryName(const std::string &aeronDirectoryName)
+  {
+    m_aeronDirectoryName = aeronDirectoryName;
     return *this;
   }
 
@@ -399,6 +321,29 @@ public:
     return *this;
   }
 
+
+  inline archive::client::Context &archiveContext()
+  {
+    return m_archiveContext;
+  }
+
+  inline this_t &archiveContext(archive::client::Context &archiveContext)
+  {
+    m_archiveContext = archiveContext;
+    return *this;
+  }
+
+  inline const std::string &clusterDirectoryName() const
+  {
+    return m_clusterDirectoryName;
+  }
+
+  inline this_t &clusterDirectoryName(const std::string &clusterDirectoryName)
+  {
+    m_clusterDirectoryName = clusterDirectoryName;
+    return *this;
+  }
+
   inline std::int32_t serviceId() const
   {
     return m_serviceId;
@@ -410,6 +355,17 @@ public:
     return *this;
   }
 
+  inline const std::string &serviceName() const
+  {
+    return m_serviceName;
+  }
+
+  inline this_t &serviceName(const std::string &serviceName)
+  {
+    m_serviceName = serviceName;
+    return *this;
+  }
+
   inline const std::string &controlChannel() const
   {
     return m_controlChannel;
@@ -418,6 +374,50 @@ public:
   inline this_t &controlChannel(const std::string &controlChannel)
   {
     m_controlChannel = controlChannel;
+    return *this;
+  }
+
+  inline const std::string &replayChannel() const
+  {
+    return m_replayChannel;
+  }
+
+  inline this_t &replayChannel(const std::string &replayChannel)
+  {
+    m_replayChannel = replayChannel;
+    return *this;
+  }
+
+  inline std::int32_t replayStreamId() const
+  {
+    return m_replayStreamId;
+  }
+
+  inline this_t &replayStreamId(std::int32_t streamId)
+  {
+    m_replayStreamId = streamId;
+    return *this;
+  }
+
+  inline const std::string &snapshotChannel() const
+  {
+    return m_snapshotChannel;
+  }
+
+  inline this_t &snapshotChannel(const std::string &snapshotChannel)
+  {
+    m_snapshotChannel = snapshotChannel;
+    return *this;
+  }
+
+  inline std::int32_t snapshotStreamId() const
+  {
+    return m_snapshotStreamId;
+  }
+
+  inline this_t &snapshotStreamId(std::int32_t streamId)
+  {
+    m_snapshotStreamId = streamId;
     return *this;
   }
 
@@ -456,16 +456,96 @@ public:
 
   void conclude();
 
+  /**
+   * User assigned application version which appended to the log as the appVersion in new leadership events.
+   * <p>
+   * This can be validated using {@link org.agrona.SemanticVersion} to ensure only application nodes of the same
+   * major version communicate with each other.
+   *
+   * @param appVersion for user application.
+   * @return this for a fluent API.
+   */
+  inline this_t &appVersion(std::int32_t appVersion)
+  {
+    m_appVersion = appVersion;
+    return *this;
+  }
+
+  /**
+   * User assigned application version which appended to the log as the appVersion in new leadership events.
+   * <p>
+   * This can be validated using {@link org.agrona.SemanticVersion} to ensure only application nodes of the same
+   * major version communicate with each other.
+   *
+   * @return appVersion for user application.
+   */
+  inline std::int32_t appVersion()
+  {
+    return m_appVersion;
+  }
+
+  /**
+   * Set the id for this cluster instance. This must match with the Consensus Module.
+   *
+   * @param clusterId for this clustered instance.
+   * @return this for a fluent API
+   * @see Configuration#CLUSTER_ID_PROP_NAME
+   */
+  inline this_t &clusterId(std::int32_t clusterId)
+  {
+    m_clusterId = clusterId;
+    return *this;
+  }
+
+  /**
+   * Get the id for this cluster instance. This must match with the Consensus Module.
+   *
+   * @return the id for this cluster instance.
+   * @see Configuration#CLUSTER_ID_PROP_NAME
+   */
+  inline std::int32_t clusterId()
+  {
+    return m_clusterId;
+  }
+
+  inline bool isRespondingService() const
+  {
+    return m_isRespondingService;
+  }
+
+  
+  inline this_t &isRespondingService(bool isRespondingService)
+  {
+    m_isRespondingService = isRespondingService;
+    return *this;
+  }
+  
 private:
+  archive::client::Context m_archiveContext;
   std::shared_ptr<Aeron> m_aeron;
   std::string m_aeronDirectoryName = aeron::Context::defaultAeronPath();
+  std::string m_clusterDirectoryName;
   std::int32_t m_serviceId;
+  std::string m_serviceName;
   std::string m_controlChannel = Configuration::CONTROL_CHANNEL_DEFAULT;
+  std::string m_replayChannel = Configuration::REPLAY_CHANNEL_DEFAULT;
+  std::int32_t m_replayStreamId;
+  std::string m_snapshotChannel = Configuration::SNAPSHOT_CHANNEL_DEFAULT;
+  std::int32_t m_snapshotStreamId;
   std::int32_t m_consensusModuleStreamId;
   std::int32_t m_serviceStreamId;
   std::shared_ptr<ClusteredService> m_clusteredService;
   bool m_ownsAeronClient = false;
   exception_handler_t m_errorHandler = nullptr;
+  std::int32_t m_appVersion;
+  std::int32_t m_clusterId;
+  bool m_isRespondingService;
+
+  inline void applyDefaultParams(std::string &channel) const
+  {
+    std::shared_ptr<ChannelUri> uri = ChannelUri::parse(channel);
+    channel = uri->toString();
+  }
 };
 
 
