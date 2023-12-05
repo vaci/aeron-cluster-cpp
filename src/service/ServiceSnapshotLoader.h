@@ -2,9 +2,10 @@
 #define AERON_CLUSTER_SERVICE_SERVICE_SNAPSHOT_LOADER_H
 
 #include "FragmentAssembler.h"
-#include "ClusteredServiceAgent.h"
 
 namespace aeron { namespace cluster { namespace service {
+
+class ClusteredServiceAgent;
 
 class ServiceSnapshotLoader
 {
@@ -37,7 +38,8 @@ public:
 private:
   std::shared_ptr<Image> m_image;
   ClusteredServiceAgent &m_agent;
-  bool m_isDone;
+  bool m_inSnapshot = false;
+  bool m_isDone = false;
   std::int32_t m_appVersion;
   std::int32_t m_timeUnit;
   

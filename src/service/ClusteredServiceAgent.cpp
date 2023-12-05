@@ -44,19 +44,6 @@ std::shared_ptr<Counter> awaitCounter(CountersReader &counters, std::int32_t typ
 
 
 template<typename IdleStrategy = aeron::concurrent::BackoffIdleStrategy>
-std::int32_t awaitRecoveryCounter(CountersReader &counters, std::int32_t clusterId)
-{
-  IdleStrategy idle;
-  std::int32_t counterId = RecoveryState::findCounterId(counters, clusterId);
-  while (CountersReader::NULL_COUNTER_ID == counterId)
-  {
-    idle.idle();
-    counterId = RecoveryState::findCounterId(counters, clusterId);
-  }
-  return counterId;
-}
-
-template<typename IdleStrategy = aeron::concurrent::BackoffIdleStrategy>
 std::int32_t awaitRecordingCounter(
   std::int64_t sessionId,
   CountersReader &counters,
@@ -105,6 +92,7 @@ ClusteredServiceAgent::AsyncConnect::AsyncConnect(
   std::int64_t subscriptionId) :
   m_ctx(ctx),
   m_aeron(ctx.aeron()),
+  m_aeronArchiveConnect(AeronArchive::asyncConnect(m_ctx.archiveContext())),
   m_publicationId(publicationId),
   m_subscriptionId(subscriptionId)
 {
@@ -112,6 +100,9 @@ ClusteredServiceAgent::AsyncConnect::AsyncConnect(
 
 std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll()
 {
+  auto& counters = m_aeron->countersReader();
+  m_agent = std::make_shared<ClusteredServiceAgent>(m_ctx);
+
   if (!m_publication)
   {
     m_publication = m_aeron->findExclusivePublication(m_publicationId);
@@ -120,29 +111,126 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
   {
     m_subscription = m_aeron->findSubscription(m_subscriptionId);
   }
-  if (m_publication && !m_proxy)
+  if (m_publication && !m_agent->m_proxy)
   {
-    m_proxy = std::make_shared<ConsensusModuleProxy>(m_publication);
+    m_agent->m_proxy = std::make_shared<ConsensusModuleProxy>(m_publication);
   }
-  if (m_subscription && !m_serviceAdapter)
+  if (m_subscription && !m_agent->m_serviceAdapter)
   {
-    m_serviceAdapter = std::make_shared<ServiceAdapter>(m_subscription);
+    m_agent->m_serviceAdapter = std::make_shared<ServiceAdapter>(m_subscription);
   }
-  if (0 == m_step && m_proxy && m_serviceAdapter)
+  if (!m_agent->m_archive)
   {
-    if (!m_proxy->publication()->isConnected())
+    m_agent->m_archive = m_aeronArchiveConnect->poll();
+  }
+  if (!m_agent->m_commitPosition)
+  {
+    m_agent->m_commitPosition = ClusterCounters::find(
+      counters,
+      Configuration::COMMIT_POSITION_TYPE_ID,
+      m_ctx.clusterId());
+  }
+  if (!m_recoveryCounter)
+  {
+    m_recoveryCounter = RecoveryState::findCounter(counters, m_ctx.clusterId());
+  }
+
+  if (0 == m_step &&
+      m_agent->m_proxy &&
+      m_agent->m_serviceAdapter &&
+      m_agent->m_commitPosition &&
+      m_recoveryCounter &&
+      m_agent->m_archive)
+  {
+    if (!m_agent->m_proxy->publication()->isConnected())
     {
       return {};
     }
 
+    // bind the service adapter to the agent
+    m_agent->m_serviceAdapter->agent(m_agent);
     m_step = 1;
   }
 
   if (m_step == 1)
   {
-    auto agent = std::make_shared<ClusteredServiceAgent>(m_ctx, m_proxy, m_serviceAdapter);
-    m_serviceAdapter->agent(agent);
-    return agent;
+    std::int32_t counterId = m_recoveryCounter->id();
+    m_agent->m_logPosition = RecoveryState::getLogPosition(counters, counterId);
+    m_clusterTime = RecoveryState::getTimestamp(counters, counterId);
+    m_leadershipTermId = RecoveryState::getLeadershipTermId(counters, counterId);
+    m_snapshotRecordingId = RecoveryState::getSnapshotRecordingId(counters, counterId, m_ctx.serviceId());
+
+    if (m_leadershipTermId != NULL_VALUE)
+    {
+      // start snapshot replay
+      auto& channel = m_ctx.replayChannel();
+      std::int32_t streamId = m_ctx.replayStreamId();
+      m_snapshotSessionId = (int)m_agent->m_archive->startReplay(m_snapshotRecordingId, 0, NULL_VALUE, channel, streamId);
+      auto replaySessionChannel = ChannelUri::addSessionId(channel, m_snapshotSessionId);
+      m_snapshotSubscriptionId = m_aeron->addSubscription(replaySessionChannel, streamId);
+      m_step = 2;
+    }
+    else {
+      // skip snapshot replay
+      m_step = 3;
+    }
+    return {};
+  }
+
+  if (m_step == 2)
+  {
+    if (!m_snapshotSubscription)
+    {
+      m_snapshotSubscription = m_aeron->findSubscription(m_snapshotSubscriptionId);
+      return {};
+    }
+
+    if (!m_snapshotImage)
+    {
+      m_snapshotImage = m_snapshotSubscription->imageBySessionId(m_snapshotSessionId);
+      return {};
+    }
+
+    if (!m_snapshotLoader)
+    {
+      m_snapshotLoader = std::make_unique<ServiceSnapshotLoader>(m_snapshotImage, *m_agent);
+      return {};
+    }
+
+    if (!m_snapshotLoader->isDone())
+    {
+      std::int32_t fragments = m_snapshotLoader->poll();
+      if (fragments == 0)
+      {
+	m_agent->m_archive->checkForErrorResponse();
+	if (m_snapshotImage->isClosed())
+	{
+	  throw ClusterException("snapshot ended unexpectedly: ", SOURCEINFO);
+	}
+      }
+      return {};
+    }
+
+    m_step = 3;
+    return {};
+  }
+
+  if (m_step == 3)
+  {
+    // m_snapshotImage may be null if no snapshot
+    if (m_agent->m_service->onStart(*m_agent, m_snapshotImage))
+    {
+      m_step = 4;
+    }
+    return {};
+  }
+
+  if (m_step == 4)
+  {
+    m_agent->ack( m_aeron->clientId());
+    
+    m_agent->m_isServiceActive = true;
+    return m_agent;
   }
 
   return {};
@@ -159,126 +247,20 @@ void ClusteredServiceAgent::onUnavailableCounter(
   }
 }
 
-void ClusteredServiceAgent::loadState(std::shared_ptr<Image> image, std::shared_ptr<AeronArchive> archive)
+void ClusteredServiceAgent::addSession(std::unique_ptr<ContainerClientSession> session)
 {
-  BackoffIdleStrategy idle;
+  std::int64_t clusterSessionId = session->id();
+  m_sessionByIdMap.insert({clusterSessionId, session.get()});
 
-  ServiceSnapshotLoader snapshotLoader(image, *this);
-  while (true)
-  {
-    std::int32_t fragments = snapshotLoader.poll();
-    if (snapshotLoader.isDone())
+  auto index = std::lower_bound(
+    m_sessions.begin(), m_sessions.end(), clusterSessionId,
+    [](auto& session, std::int64_t id)
     {
-      break;
+      return session->id() < id;
     }
-
-    if (fragments == 0)
-    {
-      archive->checkForErrorResponse();
-      if (image->isClosed())
-      {
-	throw ClusterException("snapshot ended unexpectedly: ", SOURCEINFO);
-      }
-    }
-
-    idle.idle(fragments);
-  }
-
-  // TODO
-  //std::int32_t appVersion = snapshotLoader.appVersion();
-  //if (!m_ctx.appVersionValidator().isVersionCompatible(ctx.appVersion(), appVersion))
-  //{
-  //  throw ClusterException(
-  //    "incompatible app version: " + SemanticVersion.toString(ctx.appVersion()) +
-  //    " snapshot=" + SemanticVersion.toString(appVersion));
-  //}
-
-  m_timeUnit = snapshotLoader.timeUnit();
-}
-
-void ClusteredServiceAgent::loadSnapshot(std::int64_t recordingId)
-{
-  BackoffIdleStrategy idle;
-
-  auto archive = AeronArchive::connect(m_ctx.archiveContext());
-
-  auto& channel = m_ctx.replayChannel();
-  std::int32_t streamId = m_ctx.replayStreamId();
-  std::int32_t  sessionId = (int)archive->startReplay(recordingId, 0, NULL_VALUE, channel, streamId);
-
-  auto replaySessionChannel = ChannelUri::addSessionId(channel, sessionId);
-
-  std::int64_t subscriptionRegistrationId = m_aeron->addSubscription(replaySessionChannel, streamId);
-
-  auto subscription = m_aeron->findSubscription(subscriptionRegistrationId);
-  while (!subscription)
-  {
-    idle.idle();
-    subscription = m_aeron->findSubscription(subscriptionRegistrationId);
-  }
-
-  auto image = subscription->imageBySessionId(sessionId);
-  while (!image)
-  {
-    idle.idle();
-    image = subscription->imageBySessionId(sessionId);
-  }
-
-  loadState(image, archive);
+  );
   
-  m_service->onStart(*this, image);
-}
-
-void ClusteredServiceAgent::recoverState(CountersReader& counters)
-{
-  std::int32_t recoveryCounterId = awaitRecoveryCounter(counters, m_ctx.clusterId());
-  auto logPosition = RecoveryState::getLogPosition(counters, recoveryCounterId);
-  m_clusterTime = RecoveryState::getTimestamp(counters, recoveryCounterId);
-  std::int64_t leadershipTermId = RecoveryState::getLeadershipTermId(counters, recoveryCounterId);
-
-  m_sessionMessageHeader.leadershipTermId(leadershipTermId);
-  m_activeLifecycleCallbackName = "onStart";
-  try
-  {
-    if (NULL_VALUE != leadershipTermId)
-    {
-      auto snapshotRecordingId = RecoveryState::getSnapshotRecordingId(counters, recoveryCounterId, m_serviceId);
-      loadSnapshot(snapshotRecordingId);
-    }
-    else
-    {
-      m_service->onStart(*this, nullptr);
-    }
-  }
-  catch (...)
-  {
-    m_activeLifecycleCallbackName = nullptr;
-    throw;
-  }
-
-  m_activeLifecycleCallbackName = nullptr;
-
-  std::int64_t id = m_ackId++;
-
-  BackoffIdleStrategy idle;
-  while (!m_consensusModuleProxy->ack(logPosition, m_clusterTime, id, m_aeron->clientId(), m_serviceId))
-  {
-    idle.idle();
-  }
-}
-
-
-void ClusteredServiceAgent::onStart()
-{
-  //closeHandlerRegistrationId = aeron.addCloseHandler(this::abort);
-  m_aeron->addUnavailableCounterHandler(unavailableCounterHandler(*this));
-  auto& counters = m_aeron->countersReader();
-
-  m_commitPosition = awaitCounter(counters, Configuration::COMMIT_POSITION_TYPE_ID, m_ctx.clusterId());
-
-  recoverState(counters);
-  //dutyCycleTracker.update(nanoClock.nanoTime());
-  m_isServiceActive = true;
+  m_sessions.insert(index, std::move(session));
 }
 
 std::shared_ptr<ClusteredServiceAgent::AsyncConnect> ClusteredServiceAgent::asyncConnect(Context &ctx)
@@ -298,9 +280,7 @@ std::shared_ptr<ClusteredServiceAgent::AsyncConnect> ClusteredServiceAgent::asyn
 }
 
 ClusteredServiceAgent::ClusteredServiceAgent(
-  Context &ctx,
-  std::shared_ptr<ConsensusModuleProxy> proxy,
-  std::shared_ptr<ServiceAdapter> serviceAdapter) :
+  Context &ctx) :
   m_ctx(ctx),
   m_aeron(ctx.aeron()),
   m_nanoClock(systemNanoClock),
@@ -308,14 +288,116 @@ ClusteredServiceAgent::ClusteredServiceAgent(
   m_service(ctx.clusteredService()),
   m_serviceId(ctx.serviceId()),
   m_subscriptionAlias(std::string("log-sc-") + std::to_string(ctx.serviceId())),
-  m_consensusModuleProxy(proxy),
-  m_serviceAdapter(serviceAdapter)
+  m_standbySnapshotFlags(ctx.standbySnapshotEnabled()
+    ? Configuration::CLUSTER_ACTION_FLAGS_STANDBY_SNAPSHOT
+    : Configuration::CLUSTER_ACTION_FLAGS_DEFAULT),
+  m_logAdapter(std::make_unique<BoundedLogAdapter>(*this, m_ctx.logFragmentLimit()))
 {
 }
 
 std::shared_ptr<ClientSession> ClusteredServiceAgent::getClientSession(std::int64_t clusterSessionId)
 {
   return nullptr;
+}
+
+void ClusteredServiceAgent::doWork()
+{
+  if (m_currentSnapshot)
+  {
+    if (!m_currentSnapshot->doWork())
+    {
+      return;
+    }
+    m_currentSnapshot = nullptr;
+  }
+    
+  processAckQueue();
+}
+
+void ClusteredServiceAgent::ackDone(std::int64_t relevantId)
+{
+  if (relevantId == NULL_VALUE)
+  {
+    m_requestedAckPosition = archive::client::NULL_POSITION;
+  }
+}
+
+void ClusteredServiceAgent::ack(std::int64_t relevantId)
+{
+  std::int64_t id = m_ackId++;
+  std::int64_t timestamp = m_clusterTime;
+    
+  if (m_ackQueue.empty() && m_proxy->ack(
+      m_logPosition,
+      m_clusterTime,
+      id,
+      relevantId,
+      m_serviceId))
+  {
+    ackDone(relevantId);
+    return;
+  }
+  else
+  {
+    m_ackQueue.push({m_logPosition, m_clusterTime, id, relevantId, m_serviceId});
+  }
+  
+}
+
+void ClusteredServiceAgent::processAckQueue()
+{
+  while (!m_ackQueue.empty())
+  {
+    auto& ack = m_ackQueue.front();
+    if (m_proxy->ack(
+	ack.m_logPosition,
+	ack.m_timestamp,
+	ack.m_ackId,
+	ack.m_relevantId,
+	ack.m_serviceId))
+    {
+      ackDone(ack.m_relevantId);
+      m_ackQueue.pop();      
+    }
+    else
+    {
+      break;
+    }
+  }
+}
+
+void ClusteredServiceAgent::onNewLeadershipTermEvent(
+  std::int64_t leadershipTermId,
+  std::int64_t logPosition,
+  std::int64_t timestamp,
+  std::int64_t termBaseLogPosition,
+  std::int32_t leaderMemberId,
+  std::int32_t logSessionId,
+  std::int32_t appVersion)
+{
+  /* TODO
+  if (!m_ctx.appVersionValidator().isVersionCompatible(ctx.appVersion(), appVersion))
+  {
+    m_ctx.countedErrorHandler().onError(new ClusterException(
+	"incompatible version: " + SemanticVersion.toString(ctx.appVersion()) +
+	" log=" + SemanticVersion.toString(appVersion)));
+    throw new AgentTerminationException();
+  }
+  */
+
+  m_leadershipTermId = leadershipTermId;
+  m_logPosition = logPosition;
+  m_clusterTime = timestamp;
+
+  m_service->onNewLeadershipTermEvent(
+    leadershipTermId,
+    logPosition,
+    timestamp,
+    termBaseLogPosition,
+    leaderMemberId,
+    logSessionId,
+    // TODO timeUnit
+    appVersion);
 }
 
 bool ClusteredServiceAgent::closeClientSession(std::int64_t clusterSessionId)
@@ -334,7 +416,7 @@ bool ClusteredServiceAgent::closeClientSession(std::int64_t clusterSessionId)
     return true;
   }
 
-  if (m_consensusModuleProxy->closeSession(clusterSessionId))
+  if (m_proxy->closeSession(clusterSessionId))
   {
     clientSession->second->markClosing();
     return true;
@@ -343,15 +425,17 @@ bool ClusteredServiceAgent::closeClientSession(std::int64_t clusterSessionId)
   return false;
 }
 
-std::int64_t ClusteredServiceAgent::offer(AtomicBuffer& buffer)
+std::int64_t ClusteredServiceAgent::offer(AtomicBuffer& message)
 {
   checkForValidInvocation();
-  m_sessionMessageHeader.clusterSessionId(context().serviceId());
+  std::array<std::uint8_t, SessionMessageHeader::sbeBlockAndHeaderLength()> buffer;
 
-  AtomicBuffer headerBuffer(
-    reinterpret_cast<std::uint8_t*>(m_sessionMessageHeader.buffer()),
-    m_sessionMessageHeader.bufferLength());
-  return m_consensusModuleProxy->offer(headerBuffer, buffer);
+  SessionMessageHeader()
+    .wrapAndApplyHeader(reinterpret_cast<char*>(buffer.begin()), 0, buffer.size())
+    .clusterSessionId(context().serviceId());
+
+  AtomicBuffer atomicBuffer;
+  return m_proxy->offer(atomicBuffer, message);
 }
 
 
@@ -383,44 +467,11 @@ void ClusteredServiceAgent::role(Cluster::Role newRole)
 }
 
 
-std::int64_t ClusteredServiceAgent::onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId)
+void ClusteredServiceAgent::onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId)
 {
-  try
-  {
-    auto archive = AeronArchive::connect(m_ctx.archiveContext());
-
-    auto publicationId = m_aeron->addExclusivePublication(
+  m_currentSnapshot = std::make_unique<SnapshotState>(*this);
+  m_currentSnapshot->m_publicationId = m_aeron->addExclusivePublication(
       m_ctx.snapshotChannel(), m_ctx.snapshotStreamId());
-
-    auto publication = m_aeron->findExclusivePublication(publicationId);
-    {
-      BackoffIdleStrategy idle;
-      while (!publication)
-      {
-	idle.idle();
-	publication = m_aeron->findExclusivePublication(publicationId);
-      }
-    }
-
-    auto channel = ChannelUri::addSessionId(m_ctx.snapshotChannel(), publication->sessionId());
-    archive->startRecording(channel, m_ctx.snapshotStreamId(), AeronArchive::LOCAL, true);
-    auto& counters = m_aeron->countersReader();
-    std::int32_t counterId = awaitRecordingCounter(publication->sessionId(), counters, archive);
-    std::int64_t recordingId = archive::client::RecordingPos::getRecordingId(counters, counterId);
-
-    snapshotState(publication, logPosition, leadershipTermId);
-    checkForClockTick(m_nanoClock());
-    archive->checkForErrorResponse();
-    m_service->onTakeSnapshot(publication);
-    awaitRecordingComplete(recordingId, publication->position(), counters, counterId, archive);
-
-    return recordingId;
-  }
-  catch (const archive::client::ArchiveException &ex)
-  {
-    // TODO
-    throw ex;
-  }
 }
 
 void ClusteredServiceAgent::disconnectEgress()
@@ -504,6 +555,111 @@ bool ClusteredServiceAgent::checkForClockTick(std::int64_t nowNs)
   }
 
   return false;
+}
+
+bool ClusteredServiceAgent::SnapshotState::doWork()
+{
+  auto& counters = m_agent.m_aeron->countersReader();
+
+  if (!m_publication)
+  {
+    m_publication = m_agent.m_aeron->findExclusivePublication(m_publicationId);
+    if (!m_publication)
+    {
+      return false;
+    }
+    auto channel = ChannelUri::addSessionId(
+      m_agent.context().snapshotChannel(), m_publication->sessionId());
+    m_agent.m_archive->startRecording(channel, m_agent.m_ctx.snapshotStreamId(), AeronArchive::LOCAL, true);
+  }
+  
+  if (m_recordingCounterId == CountersReader::NULL_COUNTER_ID)
+  {
+    auto sessionId = m_publication->sessionId();
+    m_recordingCounterId = archive::client::RecordingPos::findCounterIdBySessionId(counters, sessionId);
+    if (m_recordingCounterId == CountersReader::NULL_COUNTER_ID)
+    {
+      m_agent.m_archive->checkForErrorResponse();
+      return false;
+    }
+    m_recordingId = archive::client::RecordingPos::getRecordingId(counters, m_recordingCounterId);
+  }
+
+  if (!m_snapshotComplete)
+  {
+    m_snapshotComplete = m_agent.m_service->onTakeSnapshot(m_publication);
+    if (!m_snapshotComplete)
+      return false;;
+  }
+
+  if (counters.getCounterValue(m_recordingCounterId) < m_publication->position())
+  {
+    return false;
+  }
+
+  m_agent.ack(m_recordingId);
+  return true;
+}
+
+int ClusteredServiceAgent::pollServiceAdapter()
+{
+  int workCount = 0;
+
+  workCount += m_serviceAdapter->poll();
+  
+  if (nullptr != m_activeLogEvent && nullptr == m_logAdapter->image())
+  {
+    auto event = std::move(m_activeLogEvent);
+    m_activeLogEvent = nullptr;
+    // TODO
+    // joinActiveLog(event);
+  }
+
+  if (NULL_POSITION != m_terminationPosition && m_logPosition >= m_terminationPosition)
+  {
+    if (m_logPosition > m_terminationPosition)
+    {
+      //TODO
+      // ctx.countedErrorHandler().onError(new ClusterEvent(
+      //  "service terminate: logPosition=" + logPosition + " > terminationPosition=" + terminationPosition));
+    }
+
+    terminate(m_logPosition == m_terminationPosition);
+  }
+
+  if (NULL_POSITION != m_requestedAckPosition && m_logPosition >= m_requestedAckPosition)
+  {
+    if (m_logPosition > m_requestedAckPosition)
+    {
+      // TODO
+      /*
+      ctx.countedErrorHandler().onError(new ClusterEvent(
+	  "service terminate: logPosition=" + logPosition +
+	  " > requestedAckPosition=" + terminationPosition));
+      */
+    }
+
+    ack(NULL_VALUE);
+  }
+
+  return workCount;
+}
+
+void ClusteredServiceAgent::onSessionOpen(
+  std::int64_t leadershipTermId,
+  std::int64_t logPosition,
+  std::int64_t clusterSessionId,
+  std::int64_t timestamp,
+  std::int32_t responseStreamId,
+  const std::string &responseChannel,
+  const std::vector<char> &encodedPrincipal)
+{
+  // TODO
+}
+
+void ClusteredServiceAgent::terminate(bool expected)
+{
+  // TODO
 }
 
 

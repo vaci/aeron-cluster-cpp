@@ -13,7 +13,14 @@ class ServiceSnapshotTaker : public SnapshotTaker
 public:
   explicit ServiceSnapshotTaker(std::shared_ptr<ExclusivePublication>, std::shared_ptr<Aeron> aeron);
 
-  void snapshotSession(ClientSession &session);
+  bool snapshotSession(ClientSession &session);
+
+private:
+  void encodeSession(
+    ClientSession &session,
+    const std::string &responseChannel,
+    const std::vector<char> &encodedPrincipal,
+    AtomicBuffer &buffer);
 };
 
 }}}

@@ -33,7 +33,7 @@ constexpr std::int32_t SNAPSHOT_RECORDING_IDS_OFFSET = SERVICE_COUNT_OFFSET + si
  * @param clusterId to constrain the search.
  * @return the counter id if found otherwise {@link CountersReader#NULL_COUNTER_ID}.
  */
-std::int32_t findCounterId(CountersReader &counters, std::int32_t clusterId);
+std::shared_ptr<Counter> findCounter(CountersReader &counters, std::int32_t clusterId);
 
 /**
  * Get the position at which the snapshot was taken. {@link Aeron#NULL_VALUE} if no snapshot for recovery.

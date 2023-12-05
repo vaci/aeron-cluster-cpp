@@ -25,39 +25,39 @@ public:
      * @param snapshotIndex    so the snapshot can be sectioned.
      * @param appVersion       associated with the snapshot from {@link ClusteredServiceContainer.Context#appVersion()}.
      */
-  inline void markBegin(
+  inline bool markBegin(
     std::int64_t snapshotTypeId,
     std::int64_t logPosition,
     std::int64_t leadershipTermId,
     std::int32_t snapshotIndex,
     std::int32_t appVersion)
   {
-    markSnapshot(
+    return markSnapshot(
       snapshotTypeId, logPosition, leadershipTermId, snapshotIndex, SnapshotMark::BEGIN, appVersion);
   }
 
-        /**
-     * Mark the beginning of the encoded snapshot.
-     *
-     * @param snapshotTypeId   type to identify snapshot within a cluster.
-     * @param logPosition      at which the snapshot was taken.
-     * @param leadershipTermId at which the snapshot was taken.
-     * @param snapshotIndex    so the snapshot can be sectioned.
-     * @param appVersion       associated with the snapshot from {@link ClusteredServiceContainer.Context#appVersion()}.
-     */
-  inline void markEnd(
+  /**
+   * Mark the beginning of the encoded snapshot.
+   *
+   * @param snapshotTypeId   type to identify snapshot within a cluster.
+   * @param logPosition      at which the snapshot was taken.
+   * @param leadershipTermId at which the snapshot was taken.
+   * @param snapshotIndex    so the snapshot can be sectioned.
+   * @param appVersion       associated with the snapshot from {@link ClusteredServiceContainer.Context#appVersion()}.
+   */
+  inline bool markEnd(
     std::int64_t snapshotTypeId,
     std::int64_t logPosition,
     std::int64_t leadershipTermId,
     std::int32_t snapshotIndex,
     std::int32_t appVersion)
   {
-    markSnapshot(
+    return markSnapshot(
       snapshotTypeId, logPosition, leadershipTermId, snapshotIndex, SnapshotMark::END, appVersion);
   }
 
 
-  void markSnapshot(
+  bool markSnapshot(
     std::int64_t snapshotTypeId,
     std::int64_t logPosition,
     std::int64_t leadershipTermId,
@@ -68,8 +68,6 @@ public:
 protected:
   std::shared_ptr<ExclusivePublication> m_publication;
   std::shared_ptr<Aeron> m_aeron;
-
-  virtual void checkResultAndIdle(std::int64_t result);
 };
 
 }}}

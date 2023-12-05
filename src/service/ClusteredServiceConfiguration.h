@@ -204,49 +204,56 @@ constexpr std::int32_t COMMIT_POSITION_TYPE_ID = AERON_COUNTER_CLUSTER_COMMIT_PO
 constexpr std::int32_t CLUSTERED_SERVICE_ERROR_COUNT_TYPE_ID =
   AERON_COUNTER_CLUSTER_CLUSTERED_SERVICE_ERROR_COUNT_TYPE_ID;
 
-  /**
-   * The value {@link #SERVICE_STREAM_ID_DEFAULT} or system property
-   * {@link #SERVICE_STREAM_ID_PROP_NAME} if set.
-   *
-   * @return {@link #SERVICE_STREAM_ID_DEFAULT} or system property
-   * {@link #SERVICE_STREAM_ID_PROP_NAME} if set.
-   */
-  static std::int32_t serviceStreamId()
-  {
-    return 0;
-    //return Integer.getInteger(SERVICE_STREAM_ID_PROP_NAME, SERVICE_STREAM_ID_DEFAULT);
-  }
+constexpr std::int32_t CLUSTER_ACTION_FLAGS_DEFAULT = 0;
+
+/**
+ * Flag for a snapshot taken on a standby node.
+ */
+
+constexpr std::int32_t CLUSTER_ACTION_FLAGS_STANDBY_SNAPSHOT = 1;
+
+/**
+ * The value {@link #SERVICE_STREAM_ID_DEFAULT} or system property
+ * {@link #SERVICE_STREAM_ID_PROP_NAME} if set.
+ *
+ * @return {@link #SERVICE_STREAM_ID_DEFAULT} or system property
+ * {@link #SERVICE_STREAM_ID_PROP_NAME} if set.
+ */
+static std::int32_t serviceStreamId()
+{
+  return 0;
+  //return Integer.getInteger(SERVICE_STREAM_ID_PROP_NAME, SERVICE_STREAM_ID_DEFAULT);
+}
   
-  /**
-   * The value {@link #SNAPSHOT_CHANNEL_DEFAULT} or system property {@link #SNAPSHOT_CHANNEL_PROP_NAME} if set.
-   *
-   * @return {@link #SNAPSHOT_CHANNEL_DEFAULT} or system property {@link #SNAPSHOT_CHANNEL_PROP_NAME} if set.
-   */
-  static std::string snapshotChannel()
-  {
-    return "";
-    //return System.getProperty(SNAPSHOT_CHANNEL_PROP_NAME, SNAPSHOT_CHANNEL_DEFAULT);
-  }
+/**
+ * The value {@link #SNAPSHOT_CHANNEL_DEFAULT} or system property {@link #SNAPSHOT_CHANNEL_PROP_NAME} if set.
+ *
+ * @return {@link #SNAPSHOT_CHANNEL_DEFAULT} or system property {@link #SNAPSHOT_CHANNEL_PROP_NAME} if set.
+ */
+static std::string snapshotChannel()
+{
+  return "";
+  //return System.getProperty(SNAPSHOT_CHANNEL_PROP_NAME, SNAPSHOT_CHANNEL_DEFAULT);
+}
 
-  /**
-   * The value {@link #SNAPSHOT_STREAM_ID_DEFAULT} or system property {@link #SNAPSHOT_STREAM_ID_PROP_NAME}
-   * if set.
-   *
-   * @return {@link #SNAPSHOT_STREAM_ID_DEFAULT} or system property {@link #SNAPSHOT_STREAM_ID_PROP_NAME} if set.
-   */
-  static std::int32_t snapshotStreamId()
-  {
-    return 0;
-    //return Integer.getInteger(SNAPSHOT_STREAM_ID_PROP_NAME, SNAPSHOT_STREAM_ID_DEFAULT);
-  }
+/**
+ * The value {@link #SNAPSHOT_STREAM_ID_DEFAULT} or system property {@link #SNAPSHOT_STREAM_ID_PROP_NAME}
+ * if set.
+ *
+ * @return {@link #SNAPSHOT_STREAM_ID_DEFAULT} or system property {@link #SNAPSHOT_STREAM_ID_PROP_NAME} if set.
+ */
+static std::int32_t snapshotStreamId()
+{
+  return 0;
+  //return Integer.getInteger(SNAPSHOT_STREAM_ID_PROP_NAME, SNAPSHOT_STREAM_ID_DEFAULT);
+}
 
-  /**
-   * Property to configure if this node should take standby snapshots. The default for this property is
-   * <code>false</code>.
-   */
-  static constexpr const char *STANDBY_SNAPSHOT_ENABLED_PROP_NAME = "aeron.cluster.standby.snapshot.enabled";
-
-  
+/**
+ * Property to configure if this node should take standby snapshots. The default for this property is
+ * <code>false</code>.
+ */
+static constexpr const char *STANDBY_SNAPSHOT_ENABLED_PROP_NAME = "aeron.cluster.standby.snapshot.enabled";
+ 
 }
 
 class Context
@@ -454,6 +461,17 @@ public:
     return *this;
   }
 
+  inline bool standbySnapshotEnabled() const
+  {
+    return m_standbySnapshotEnabled;
+  }
+
+  inline this_t &standbySnapshotEnabled(bool standbySnapshotEnabled)
+  {
+    m_standbySnapshotEnabled = standbySnapshotEnabled;
+    return *this;
+  }
+
   void conclude();
 
   /**
@@ -519,6 +537,17 @@ public:
     m_isRespondingService = isRespondingService;
     return *this;
   }
+
+  inline int logFragmentLimit() const
+  {
+    return m_logFragmentLimit;
+  }
+
+  inline this_t &logFragmentLimit(int logFragmentLimit)
+  {
+    m_logFragmentLimit = logFragmentLimit;
+    return *this;
+  }
   
 private:
   archive::client::Context m_archiveContext;
@@ -540,6 +569,8 @@ private:
   std::int32_t m_appVersion;
   std::int32_t m_clusterId;
   bool m_isRespondingService;
+  bool m_standbySnapshotEnabled = false;
+  int m_logFragmentLimit;
 
   inline void applyDefaultParams(std::string &channel) const
   {

@@ -17,15 +17,15 @@ public:
     std::int64_t sessionId,
     std::int32_t responseStreamId,
     const std::string &responseChannel,
-    //final byte[] encodedPrincipal,
-    std::shared_ptr<ClusteredServiceAgent> clusteredServiceAgent);
+    const std::vector<char> &encodedPrincipal,
+    ClusteredServiceAgent &clusteredServiceAgent);
 
   inline std::int64_t id() const override
   {
     return m_id;
   }
 
-  inline std::int32_t responseStreamId() const
+  inline std::int32_t responseStreamId() const override
   {
     return m_responseStreamId;
   }
@@ -35,10 +35,10 @@ public:
     return m_responseChannel;
   }
 
-  //public byte[] encodedPrincipal()
-  //{
-  //    return encodedPrincipal;
-  //}
+  const std::vector<char> &encodedPrincipal() const override
+  {
+      return m_encodedPrincipal;
+  }
 
   void connect(std::shared_ptr<Aeron> aeron);
 
@@ -84,17 +84,16 @@ public:
     }
     */
 
- private: 
-    std::int64_t m_id;
-    std::int32_t m_responseStreamId;
-    std::string m_responseChannel;
-    //private final byte[] encodedPrincipal;
+private: 
+  std::int64_t m_id;
+  std::int32_t m_responseStreamId;
+  std::string m_responseChannel;
+  std::vector<char> m_encodedPrincipal;
+  ClusteredServiceAgent& m_clusteredServiceAgent;
 
-    std::shared_ptr<ClusteredServiceAgent> m_clusteredServiceAgent;
-
-    std::int64_t m_responseRegistration;
-    std::shared_ptr<ExclusivePublication> m_responsePublication;
-    bool m_isClosing;
+  std::int64_t m_responseRegistration;
+  std::shared_ptr<ExclusivePublication> m_responsePublication;
+  bool m_isClosing;
 };
 
 }}}

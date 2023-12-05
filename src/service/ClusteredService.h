@@ -15,7 +15,8 @@ class ClusteredService
 public:
   virtual ~ClusteredService();
 
-  virtual void onStart(Cluster &cluster, std::shared_ptr<Image> snapshotImage) = 0;
+  // onStart will be called repeatedly until it returns true?
+  virtual bool onStart(Cluster &cluster, std::shared_ptr<Image> snapshotImage) = 0;
 
   /**
    * A session has been opened for a client to the cluster.
@@ -60,7 +61,7 @@ public:
    */
   virtual void onTimerEvent(std::int64_t correlationId, std::int64_t timestamp) = 0;
 
-  virtual void onTakeSnapshot(std::shared_ptr<ExclusivePublication> snapshotPublication) = 0;
+  virtual bool onTakeSnapshot(std::shared_ptr<ExclusivePublication> snapshotPublication) = 0;
 
   /**
    * Notify that the cluster node has changed role.
@@ -95,8 +96,7 @@ public:
     std::int64_t termBaseLogPosition,
     std::int64_t leaderMemberId,
     std::int64_t logSessionId,
-    // TODO 
-    int timeUnit,
+    // TODO int timeUnit,
     std::int32_t appVersion)
   {
   }

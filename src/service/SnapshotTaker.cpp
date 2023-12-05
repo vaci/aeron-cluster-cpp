@@ -13,7 +13,7 @@ using client::ClusterException;
 
 namespace {
 
-static void checkResult(std::int64_t result)
+static inline void checkResult(std::int64_t result)
 {
   if (result == NOT_CONNECTED ||
       result == PUBLICATION_CLOSED ||
@@ -33,7 +33,7 @@ SnapshotTaker::SnapshotTaker(
 {
 }
 
-void SnapshotTaker::markSnapshot(
+bool SnapshotTaker::markSnapshot(
   std::int64_t snapshotTypeId,
   std::int64_t logPosition,
   std::int64_t leadershipTermId,
@@ -41,45 +41,28 @@ void SnapshotTaker::markSnapshot(
   SnapshotMark::Value snapshotMark,
   std::int32_t  appVersion)
 {
-  concurrent::BackoffIdleStrategy idle;
 
-  while (true)
+  BufferClaim bufferClaim;
+  std::int64_t result = m_publication->tryClaim(SnapshotMarker::sbeBlockAndHeaderLength(), bufferClaim);
+  if (result > 0)
   {
-    BufferClaim bufferClaim;
-    std::int64_t result = m_publication->tryClaim(SnapshotMarker::sbeBlockAndHeaderLength(), bufferClaim);
-    if (result > 0)
-    {
-      auto buffer = bufferClaim.buffer();
-      SnapshotMarker marker;
-      marker
-	.wrapAndApplyHeader(reinterpret_cast<char*>(buffer.buffer()), 0, bufferClaim.length())
-	.typeId(snapshotTypeId)
-	.logPosition(logPosition)
-	.leadershipTermId(leadershipTermId)
-	.index(snapshotIndex)
-	.mark(snapshotMark)
-	.timeUnit(ClusterTimeUnit::Value::NANOS)
-	.appVersion(appVersion);
+    auto buffer = bufferClaim.buffer();
+    SnapshotMarker marker;
+    marker
+      .wrapAndApplyHeader(reinterpret_cast<char*>(buffer.buffer()), 0, bufferClaim.length())
+      .typeId(snapshotTypeId)
+      .logPosition(logPosition)
+      .leadershipTermId(leadershipTermId)
+      .index(snapshotIndex)
+      .mark(snapshotMark)
+      .timeUnit(ClusterTimeUnit::Value::NANOS)
+      .appVersion(appVersion);
 	
-      bufferClaim.commit();
-      break;
-    }
-
-    checkResultAndIdle(result);
+    bufferClaim.commit();
+    return true;
   }
-}
-
-void SnapshotTaker::checkResultAndIdle(std::int64_t result)
-{
-    checkResult(result);
-    //checkInterruptStatus();
-    if (m_aeron->usesAgentInvoker())
-    {
-      m_aeron->conductorAgentInvoker().invoke();
-    }
-
-    BackoffIdleStrategy idle;
-    idle.idle();
+  checkResult(result);
+  return false;
 }
 
 }}}
