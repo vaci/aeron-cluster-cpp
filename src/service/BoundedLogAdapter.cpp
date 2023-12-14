@@ -13,6 +13,7 @@
 #include "aeron_cluster_client/MembershipChangeEvent.h"
 #include "aeron_cluster_client/TimerEvent.h"
 #include "aeron_cluster_client/ClusterAction.h"
+#include "aeron_cluster_client/ClusterActionRequest.h"
 
 namespace aeron { namespace cluster { namespace service {
 
@@ -23,6 +24,7 @@ using client::SessionOpenEvent;
 using client::SessionCloseEvent;
 using client::NewLeadershipTermEvent;
 using client::MembershipChangeEvent;
+using client::ClusterActionRequest;
 
 namespace {
 
@@ -139,7 +141,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
 	  
   case SessionCloseEvent::sbeTemplateId():
     {
-      SessionCloseEvent openEvent;
+      SessionCloseEvent closeEvent;
 
       closeEvent.wrapForDecode(
 	reinterpret_cast<char*>(buffer.buffer()),
@@ -158,17 +160,19 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     }
   case ClusterActionRequest::sbeTemplateId():
     {
-      ActionRequest actionRequest;
+      ClusterActionRequest actionRequest;
       actionRequest.wrapForDecode(
 	reinterpret_cast<char*>(buffer.buffer()),
-	offset + MessageHeader::encodedLength(),,
+	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
 	length - MessageHeader::encodedLength());
 
-      auto flags = ClusterActionRequest::flagsNullValue() != actionReques.flags() ?
-	actionRequest.flags() : ConsensusModule::CLUSTER_ACTION_FLAGS_DEFAULT;
+      // TODO
+      //auto flags = ClusterActionRequest::flagsNullValue() != actionRequest.flags() ?
+      //	actionRequest.flags() : ConsensusModule::CLUSTER_ACTION_FLAGS_DEFAULT;
 
+      auto flags = Configuration::CLUSTER_ACTION_FLAGS_DEFAULT;
       m_agent.onServiceAction(
 	actionRequest.leadershipTermId(),
 	actionRequest.logPosition(),
@@ -182,7 +186,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     {
       NewLeadershipTermEvent newLeadershipTermEvent;
       newLeadershipTermEvent.wrapForDecode(
-	buffer,
+	reinterpret_cast<char*>(buffer.buffer()),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
@@ -203,8 +207,8 @@ ControlledPollAction BoundedLogAdapter::onMessage(
   case MembershipChangeEvent::sbeTemplateId():
     {
       MembershipChangeEvent membershipChangeEvent;
-      membershipChangeEvent.wrap(
-	buffer,
+      membershipChangeEvent.wrapForDecode(
+	reinterpret_cast<char*>(buffer.buffer()),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),

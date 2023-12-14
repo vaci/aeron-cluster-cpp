@@ -24,7 +24,7 @@ public:
    * @param session   for the client which have been opened.
    * @param timestamp at which the session was opened.
    */
-  virtual void onSessionOpen(ClientSession &session, std::int64_t timestamp);
+  virtual void onSessionOpen(ClientSession &session, std::int64_t timestamp) = 0;
 
   /**
    * A session has been closed for a client to the cluster.
@@ -75,7 +75,7 @@ public:
    *
    * @param cluster with which the service can interact.
    */
-  virtual void onTerminate(Cluster cluster) = 0;
+  virtual void onTerminate(Cluster &cluster) = 0;
 
   /**
    * An election has been successful and a leader has entered a new term.

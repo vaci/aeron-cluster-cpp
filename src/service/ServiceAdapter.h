@@ -18,7 +18,7 @@ public:
 
   ~ServiceAdapter();
 
-  void agent(std::shared_ptr<ClusteredServiceAgent> agent)
+  inline void agent(std::shared_ptr<ClusteredServiceAgent> agent)
   {
     m_agent = agent;
   }
@@ -30,6 +30,10 @@ public:
 
   inline int poll()
   {
+    std::cout << "ServiceAdapter::poll: "
+	      << m_subscription->channel() << ":" << m_subscription->streamId()
+	      << (m_subscription->isClosed() ? " closed " : " open ")
+	      << std::endl;
     return m_subscription->poll(m_fragmentHandler, FRAGMENT_LIMIT);
   }
 

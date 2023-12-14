@@ -7,7 +7,7 @@ using ClusterException = client::ClusterException;
 
 namespace RecoveryState {
 
-std::shared_ptr<Counter> findCounter(CountersReader &counters, std::int32_t clusterId)
+std::int32_t findCounter(CountersReader &counters, std::int32_t clusterId)
 {
   auto buffer = counters.metaDataBuffer();
 
@@ -21,7 +21,7 @@ std::shared_ptr<Counter> findCounter(CountersReader &counters, std::int32_t clus
       {
 
 	std::int64_t registrationId = counters.getCounterRegistrationId(i);
-	return std::make_shared<Counter>(counters, registrationId, i);
+	return i;
       }
     }
     else if (CountersReader::RECORD_UNUSED == counterState)
@@ -30,7 +30,7 @@ std::shared_ptr<Counter> findCounter(CountersReader &counters, std::int32_t clus
     }
   }
   
-  return nullptr;
+  return CountersReader::NULL_COUNTER_ID;
 }
 
 std::int64_t getLogPosition(CountersReader &counters, std::int32_t counterId)

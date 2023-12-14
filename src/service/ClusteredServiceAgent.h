@@ -11,9 +11,11 @@
 #include "Cluster.h"
 #include "ServiceAdapter.h"
 #include "ClusteredService.h"
+#include "ClusterMarkFile.h"
 #include "ClusteredServiceConfiguration.h"
 #include "aeron_cluster_client/SessionMessageHeader.h"
 #include "aeron_cluster_client/ClusterAction.h"
+#include "aeron_cluster_client/ChangeType.h"
 
 #include <unordered_map>
 #include <vector>
@@ -25,6 +27,7 @@ using AeronArchive = archive::client::AeronArchive;
 
 using client::SessionMessageHeader;
 using client::ClusterAction;
+using client::ChangeType;
 
 class ServiceSnapshotLoader;
 class ClusteredServiceAgent;
@@ -42,7 +45,8 @@ public:
   static constexpr auto NULL_POSITION = archive::client::NULL_POSITION;
   explicit ClusteredServiceAgent(Context &context);
 
-  std::shared_ptr<ClientSession> getClientSession(std::int64_t clusterSessionId) override;
+  ClientSession* getClientSession(std::int64_t clusterSessionId) override;
+
   bool closeClientSession(std::int64_t clusterSessionId) override;
 
   void onTimerEvent(std::int64_t logPosition, std::int64_t correlationId, std::int64_t timestamp);
@@ -61,6 +65,7 @@ public:
   }
 
   void addSession(std::unique_ptr<ContainerClientSession> session);
+  std::unique_ptr<ContainerClientSession> removeSession(std::int64_t clusterSessionId);
 
   inline bool cancelTimer(std::int64_t correlationId)
   {
@@ -79,26 +84,21 @@ public:
 
   void onUnavailableCounter(CountersReader &countersReader, std::int64_t registrationId, std::int32_t counterId);
 
+  void doWork();
+
   struct AsyncConnect
   {
-    AsyncConnect(
-      Context &,
-      std::int64_t publicationId,
-      std::int64_t subscriptionId);
-
+    explicit AsyncConnect(Context &);
     std::shared_ptr<ClusteredServiceAgent> poll();
 
   private:
     Context &m_ctx;
-    std::shared_ptr<Aeron> m_aeron;
     std::shared_ptr<AeronArchive::AsyncConnect> m_aeronArchiveConnect;
     std::int64_t m_publicationId;
     std::shared_ptr<ExclusivePublication> m_publication;
     std::int64_t m_subscriptionId;
     std::shared_ptr<Subscription> m_subscription;
-    std::shared_ptr<Counter> m_recoveryCounter;
-    std::int64_t m_clusterTime = NULL_VALUE;
-    std::int64_t m_leadershipTermId = NULL_VALUE;
+    std::int32_t m_recoveryCounterId = CountersReader::NULL_COUNTER_ID;
     std::int64_t m_snapshotRecordingId = NULL_VALUE;
     std::int64_t m_snapshotSubscriptionId;
     std::int64_t m_snapshotSessionId;
@@ -113,7 +113,6 @@ public:
 
 private:
   Context &m_ctx;
-  std::shared_ptr<Aeron> m_aeron;
   std::shared_ptr<AeronArchive> m_archive = nullptr;
   nano_clock_t m_nanoClock;
   epoch_clock_t m_epochClock;
@@ -145,14 +144,13 @@ private:
   std::int32_t m_standbySnapshotFlags;
   CurrentAction m_currentAction = CurrentAction::NONE;
 
+  // TODO
+  //ClusterMarkFile m_markFile;
   std::unique_ptr<BoundedLogAdapter> m_logAdapter;
 
   struct SnapshotState
   {
-    SnapshotState(ClusteredServiceAgent& agent)
-      : m_agent(agent)
-    {
-    }
+    explicit SnapshotState(ClusteredServiceAgent& agent);
  
     ClusteredServiceAgent& m_agent;
     
@@ -169,7 +167,7 @@ private:
 
   void role(Cluster::Role newRole);
   void checkForValidInvocation();
-  void disconnectEgress();
+  void disconnectEgress(exception_handler_t);
   void snapshotState(
     std::shared_ptr<ExclusivePublication>,
     std::int64_t logPosition,
@@ -201,6 +199,41 @@ private:
     const std::string &responseChannel,
     const std::vector<char> &encodedPrincipal);
 
+  void onSessionClose(
+    std::int64_t leadershipTermId,
+    std::int64_t logPosition,
+    std::int64_t clusterSessionId,
+    std::int64_t timestamp,
+    CloseReason closeReason);
+
+  void onServiceAction(
+    std::int64_t leadershipTermId,
+    std::int64_t logPosition,
+    std::int64_t timestamp,
+    ClusterAction::Value action,
+    std::int32_t flags);
+
+  inline void onRequestServiceAck(std::int64_t logPosition)
+  {
+    m_requestedAckPosition = logPosition;
+  }
+
+  void onMembershipChange(
+    std::int64_t logPosition,
+    std::int64_t timestamp,
+    ChangeType::Value changeType,
+    std::int32_t memberId);
+
+  void onJoinLog(
+    std::int64_t logPosition,
+    std::int64_t maxLogPosition,
+    std::int32_t memberId,
+    std::int32_t logSessionId,
+    std::int32_t logStreamId,
+    bool isStartup,
+    Cluster::Role role,
+    const std::string &logChannel);  
+  
   inline void onSessionMessage(
     std::int64_t logPosition,
     std::int64_t clusterSessionId,
@@ -213,8 +246,13 @@ private:
     m_logPosition = logPosition;
     m_clusterTime = timestamp;
     auto found = m_sessionByIdMap.find(clusterSessionId);
-    m_service->onSessionMessage(*found->second, timestamp, buffer, offset, length, header);
+    if (found != m_sessionByIdMap.end())
+    {
+      m_service->onSessionMessage(*found->second, timestamp, buffer, offset, length, header);
+    }
   }
+
+  void onServiceTerminationPosition(std::int64_t logPosition);
 
   void terminate(bool expected);
   inline bool shouldSnapshot(std::int32_t flags)
@@ -225,6 +263,7 @@ private:
 
   friend class AsyncConnect;
   friend class BoundedLogAdapter;
+  friend class ServiceAdapter;
 
   struct ActiveLogEvent
   {
@@ -236,8 +275,14 @@ private:
     bool m_isStartup;
     Role m_role;
     std::string m_channel;
+
+    std::uint64_t m_logSubscriptionId = NULL_VALUE;
+    std::shared_ptr<Subscription> m_subscription = nullptr;
+    std::shared_ptr<Image> m_image = nullptr;
   };
 
+  bool joinActiveLog(ActiveLogEvent &event);
+  
   struct Ack
   {
     std::int64_t m_logPosition;
@@ -251,7 +296,6 @@ private:
   std::unique_ptr<ActiveLogEvent> m_activeLogEvent;
 
   void onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId);
-  void doWork();
   void processAckQueue();
   int pollServiceAdapter();
   void ack(std::int64_t relevantId);
@@ -267,6 +311,19 @@ inline void ClusteredServiceAgent::executeAction(
   if (ClusterAction::Value::SNAPSHOT == action && shouldSnapshot(flags))
   {
     onTakeSnapshot(logPosition, leadershipTermId);
+  }
+}
+
+inline ClientSession* ClusteredServiceAgent::getClientSession(std::int64_t clusterSessionId)
+{
+  auto iter = m_sessionByIdMap.find(clusterSessionId);
+  if (iter != m_sessionByIdMap.end())
+  {
+    return iter->second;
+  }
+  else
+  {
+    return nullptr;
   }
 }
 

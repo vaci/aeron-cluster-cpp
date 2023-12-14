@@ -12,6 +12,7 @@ export LIBS = \
   -lcapnpc -lcapnp-rpc -lcapnp \
   -lkj-async -lkj-test -lkj \
   -lkj-test \
+  -laeron_archive_client \
   -laeron_driver -laeron_client -laeron \
   -lpthread \
   -lgtest_main -lgtest

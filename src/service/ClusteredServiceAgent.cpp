@@ -1,5 +1,5 @@
 #include "ClusteredServiceAgent.h"
-
+#include "ChannelUriStringBuilder.h"
 #include "client/ClusterException.h"
 #include "ClusterCounters.h"
 #include "RecoveryState.h"
@@ -87,36 +87,39 @@ void awaitRecordingComplete(
 using ClusterException = client::ClusterException;
 
 ClusteredServiceAgent::AsyncConnect::AsyncConnect(
-  Context & ctx,
-  std::int64_t publicationId,
-  std::int64_t subscriptionId) :
+  Context & ctx) :
   m_ctx(ctx),
-  m_aeron(ctx.aeron()),
-  m_aeronArchiveConnect(AeronArchive::asyncConnect(m_ctx.archiveContext())),
-  m_publicationId(publicationId),
-  m_subscriptionId(subscriptionId)
+  m_aeronArchiveConnect(AeronArchive::asyncConnect(m_ctx.archiveContext()))
 {
+  m_publicationId = m_ctx.aeron()->addExclusivePublication(
+    m_ctx.controlChannel(), m_ctx.consensusModuleStreamId());
+
+  m_subscriptionId = m_ctx.aeron()->addSubscription(
+    m_ctx.controlChannel(), m_ctx.serviceStreamId());
+
+  m_agent = std::make_shared<ClusteredServiceAgent>(m_ctx);
 }
 
 std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll()
 {
-  auto& counters = m_aeron->countersReader();
-  m_agent = std::make_shared<ClusteredServiceAgent>(m_ctx);
+  auto& counters = m_ctx.aeron()->countersReader();
 
   if (!m_publication)
   {
-    m_publication = m_aeron->findExclusivePublication(m_publicationId);
+    m_publication = m_ctx.aeron()->findExclusivePublication(m_publicationId);
   }
   if (!m_subscription)
   {
-    m_subscription = m_aeron->findSubscription(m_subscriptionId);
+    m_subscription = m_ctx.aeron()->findSubscription(m_subscriptionId);
   }
   if (m_publication && !m_agent->m_proxy)
   {
+    std::cout << "Publishing to proxy on : " << m_publication->channel() << ":" << m_publication->streamId() << std::endl;
     m_agent->m_proxy = std::make_shared<ConsensusModuleProxy>(m_publication);
   }
   if (m_subscription && !m_agent->m_serviceAdapter)
   {
+    std::cout << "Subscribed to service: " << m_subscription->channel() << ":" << m_subscription->streamId() << std::endl;
     m_agent->m_serviceAdapter = std::make_shared<ServiceAdapter>(m_subscription);
   }
   if (!m_agent->m_archive)
@@ -130,20 +133,22 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
       Configuration::COMMIT_POSITION_TYPE_ID,
       m_ctx.clusterId());
   }
-  if (!m_recoveryCounter)
+  if (m_recoveryCounterId == CountersReader::NULL_COUNTER_ID)
   {
-    m_recoveryCounter = RecoveryState::findCounter(counters, m_ctx.clusterId());
+    m_recoveryCounterId = RecoveryState::findCounter(counters, m_ctx.clusterId());
   }
 
   if (0 == m_step &&
       m_agent->m_proxy &&
       m_agent->m_serviceAdapter &&
       m_agent->m_commitPosition &&
-      m_recoveryCounter &&
+      m_recoveryCounterId != CountersReader::NULL_COUNTER_ID &&
       m_agent->m_archive)
   {
+    std::cout << "Resolved all parts" << std::endl;
     if (!m_agent->m_proxy->publication()->isConnected())
     {
+      std::cout << "Not connected:" << m_agent->m_proxy->publication()->channel() << " : " << m_agent->m_proxy->publication()->streamId() << std::endl;
       return {};
     }
 
@@ -154,23 +159,27 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
 
   if (m_step == 1)
   {
-    std::int32_t counterId = m_recoveryCounter->id();
-    m_agent->m_logPosition = RecoveryState::getLogPosition(counters, counterId);
-    m_clusterTime = RecoveryState::getTimestamp(counters, counterId);
-    m_leadershipTermId = RecoveryState::getLeadershipTermId(counters, counterId);
-    m_snapshotRecordingId = RecoveryState::getSnapshotRecordingId(counters, counterId, m_ctx.serviceId());
+    std::cout << "step 1" << std::endl;
+    m_agent->m_logPosition = RecoveryState::getLogPosition(counters, m_recoveryCounterId);
+    m_agent->m_clusterTime = RecoveryState::getTimestamp(counters, m_recoveryCounterId);
+    m_agent->m_leadershipTermId = RecoveryState::getLeadershipTermId(counters, m_recoveryCounterId);
 
-    if (m_leadershipTermId != NULL_VALUE)
+    if (m_agent->m_leadershipTermId != NULL_VALUE)
     {
+      m_snapshotRecordingId = RecoveryState::getSnapshotRecordingId(
+	counters, m_recoveryCounterId, m_ctx.serviceId());
+
+      std::cout << "Starting snapshot replay: recordingId=" << m_snapshotRecordingId << std::endl;
       // start snapshot replay
       auto& channel = m_ctx.replayChannel();
       std::int32_t streamId = m_ctx.replayStreamId();
       m_snapshotSessionId = (int)m_agent->m_archive->startReplay(m_snapshotRecordingId, 0, NULL_VALUE, channel, streamId);
       auto replaySessionChannel = ChannelUri::addSessionId(channel, m_snapshotSessionId);
-      m_snapshotSubscriptionId = m_aeron->addSubscription(replaySessionChannel, streamId);
+      m_snapshotSubscriptionId = m_ctx.aeron()->addSubscription(replaySessionChannel, streamId);
       m_step = 2;
     }
     else {
+      std::cout << "No snapshot to replay" << std::endl;
       // skip snapshot replay
       m_step = 3;
     }
@@ -179,9 +188,10 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
 
   if (m_step == 2)
   {
+    std::cout << "step 2" << std::endl;
     if (!m_snapshotSubscription)
     {
-      m_snapshotSubscription = m_aeron->findSubscription(m_snapshotSubscriptionId);
+      m_snapshotSubscription = m_ctx.aeron()->findSubscription(m_snapshotSubscriptionId);
       return {};
     }
 
@@ -217,6 +227,8 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
 
   if (m_step == 3)
   {
+    
+    std::cout << "step 3" << std::endl;
     // m_snapshotImage may be null if no snapshot
     if (m_agent->m_service->onStart(*m_agent, m_snapshotImage))
     {
@@ -227,7 +239,8 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
 
   if (m_step == 4)
   {
-    m_agent->ack( m_aeron->clientId());
+    std::cout << "step 4" << std::endl;
+    m_agent->ack(m_ctx.aeron()->clientId());
     
     m_agent->m_isServiceActive = true;
     return m_agent;
@@ -266,23 +279,12 @@ void ClusteredServiceAgent::addSession(std::unique_ptr<ContainerClientSession> s
 std::shared_ptr<ClusteredServiceAgent::AsyncConnect> ClusteredServiceAgent::asyncConnect(Context &ctx)
 {
   ctx.conclude();
-
-  std::shared_ptr<Aeron> aeron = ctx.aeron();
-  
-  const std::int64_t publicationId = aeron->addExclusivePublication(
-    ctx.controlChannel(), ctx.consensusModuleStreamId());
-
-  const std::int64_t subscriptionId = aeron->addSubscription(
-    ctx.controlChannel(), ctx.serviceStreamId());
-  
-  return std::make_shared<AsyncConnect>(ctx, publicationId, subscriptionId);
-
+  return std::make_shared<AsyncConnect>(ctx);
 }
 
 ClusteredServiceAgent::ClusteredServiceAgent(
   Context &ctx) :
   m_ctx(ctx),
-  m_aeron(ctx.aeron()),
   m_nanoClock(systemNanoClock),
   m_epochClock(currentTimeMillis),
   m_service(ctx.clusteredService()),
@@ -293,11 +295,10 @@ ClusteredServiceAgent::ClusteredServiceAgent(
     : Configuration::CLUSTER_ACTION_FLAGS_DEFAULT),
   m_logAdapter(std::make_unique<BoundedLogAdapter>(*this, m_ctx.logFragmentLimit()))
 {
-}
-
-std::shared_ptr<ClientSession> ClusteredServiceAgent::getClientSession(std::int64_t clusterSessionId)
-{
-  return nullptr;
+  if (m_service == nullptr)
+  {
+    throw ClusterException("Service is null", SOURCEINFO);
+  }
 }
 
 void ClusteredServiceAgent::doWork()
@@ -310,8 +311,18 @@ void ClusteredServiceAgent::doWork()
     }
     m_currentSnapshot = nullptr;
   }
-    
+
+  
   processAckQueue();
+
+  pollServiceAdapter();
+
+  if (m_logAdapter->image() != nullptr)
+  {
+    auto position = m_commitPosition->get();
+    std::cout << "Polling log adapter: " << position << std::endl;
+    m_logAdapter->poll(position);
+  }
 }
 
 void ClusteredServiceAgent::ackDone(std::int64_t relevantId)
@@ -470,15 +481,15 @@ void ClusteredServiceAgent::role(Cluster::Role newRole)
 void ClusteredServiceAgent::onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId)
 {
   m_currentSnapshot = std::make_unique<SnapshotState>(*this);
-  m_currentSnapshot->m_publicationId = m_aeron->addExclusivePublication(
+  m_currentSnapshot->m_publicationId = m_ctx.aeron()->addExclusivePublication(
       m_ctx.snapshotChannel(), m_ctx.snapshotStreamId());
 }
 
-void ClusteredServiceAgent::disconnectEgress()
+void ClusteredServiceAgent::disconnectEgress(exception_handler_t errorHandler)
 {
   for (auto && entry: m_sessionByIdMap)
   {
-    entry.second->disconnect();
+    entry.second->disconnect(errorHandler);
   }
 }
 
@@ -502,7 +513,7 @@ void ClusteredServiceAgent::snapshotState(
   std::int64_t logPosition,
   std::int64_t leadershipTermId)
 {
-  ServiceSnapshotTaker snapshotTaker(publication, m_aeron);
+  ServiceSnapshotTaker snapshotTaker(publication, m_ctx.aeron());
 
   snapshotTaker.markBegin(Configuration::SNAPSHOT_TYPE_ID, logPosition, leadershipTermId, 0, m_ctx.appVersion());
 
@@ -516,7 +527,7 @@ void ClusteredServiceAgent::snapshotState(
 
 bool ClusteredServiceAgent::checkForClockTick(std::int64_t nowNs)
 {
-  if (m_isAbort || m_aeron->isClosed())
+  if (m_isAbort || m_ctx.aeron()->isClosed())
   {
     m_isAbort = true;
     throw ClusterException("unexpected Aeron close", SOURCEINFO);
@@ -526,15 +537,15 @@ bool ClusteredServiceAgent::checkForClockTick(std::int64_t nowNs)
   {
     m_lastSlowTickNs = nowNs;
     
-    auto& invoker = m_aeron->conductorAgentInvoker();
+    auto& invoker = m_ctx.aeron()->conductorAgentInvoker();
     invoker.invoke();
-    if (m_isAbort || m_aeron->isClosed())
+    if (m_isAbort || m_ctx.aeron()->isClosed())
     {
       m_isAbort = true;
       throw ClusterException("unexpected Aeron close", SOURCEINFO);
     }
 
-    auto& counters = m_aeron->countersReader();
+    auto& counters = m_ctx.aeron()->countersReader();
     if (m_commitPosition != nullptr && m_commitPosition->isClosed())
     {
       // TODO
@@ -557,19 +568,26 @@ bool ClusteredServiceAgent::checkForClockTick(std::int64_t nowNs)
   return false;
 }
 
+ClusteredServiceAgent::SnapshotState::SnapshotState(ClusteredServiceAgent& agent) :
+  m_agent(agent)
+{
+}
+
 bool ClusteredServiceAgent::SnapshotState::doWork()
 {
-  auto& counters = m_agent.m_aeron->countersReader();
+  auto& counters = m_agent.context().aeron()->countersReader();
 
   if (!m_publication)
   {
-    m_publication = m_agent.m_aeron->findExclusivePublication(m_publicationId);
+    m_publication = m_agent.context().aeron()->findExclusivePublication(m_publicationId);
     if (!m_publication)
     {
       return false;
     }
     auto channel = ChannelUri::addSessionId(
       m_agent.context().snapshotChannel(), m_publication->sessionId());
+
+    std::cout << "Starting snapshot recording" << channel << std::endl;
     m_agent.m_archive->startRecording(channel, m_agent.m_ctx.snapshotStreamId(), AeronArchive::LOCAL, true);
   }
   
@@ -605,14 +623,17 @@ int ClusteredServiceAgent::pollServiceAdapter()
 {
   int workCount = 0;
 
+  std::cout << "Polling service adapter" << std::endl;
   workCount += m_serviceAdapter->poll();
   
   if (nullptr != m_activeLogEvent && nullptr == m_logAdapter->image())
   {
-    auto event = std::move(m_activeLogEvent);
-    m_activeLogEvent = nullptr;
-    // TODO
-    // joinActiveLog(event);
+    std::cout << "Joining active log event" << std::endl;
+    if (joinActiveLog(*m_activeLogEvent))
+    {
+      m_activeLogEvent = nullptr;
+      return workCount;
+    }
   }
 
   if (NULL_POSITION != m_terminationPosition && m_logPosition >= m_terminationPosition)
@@ -654,7 +675,127 @@ void ClusteredServiceAgent::onSessionOpen(
   const std::string &responseChannel,
   const std::vector<char> &encodedPrincipal)
 {
-  // TODO
+  std::cout << "ClusteredServiceAgent::onSessionOpen" << std::endl;
+  m_logPosition = logPosition;
+  m_clusterTime = timestamp;
+
+  if (m_sessionByIdMap.find(clusterSessionId) != m_sessionByIdMap.end())
+  {
+    throw ClusterException(std::string("clashing open clusterSessionId=") + std::to_string(clusterSessionId) +
+      " leadershipTermId=" + std::to_string(leadershipTermId) + " logPosition=" + std::to_string(logPosition), SOURCEINFO);
+  }
+
+  auto session = std::make_unique<ContainerClientSession>(
+    clusterSessionId, responseStreamId, responseChannel, encodedPrincipal, *this);
+
+  if (Cluster::Role::LEADER == m_role && m_ctx.isRespondingService())
+  {
+    session->connect(context().aeron());
+  }
+
+  auto session_p = session.get();
+  addSession(std::move(session));
+  m_service->onSessionOpen(*session_p, timestamp);
+}
+
+std::unique_ptr<ContainerClientSession> ClusteredServiceAgent::removeSession(std::int64_t clusterSessionId)
+{
+  m_sessionByIdMap.erase(clusterSessionId);
+
+  auto iter = std::find_if(m_sessions.begin(), m_sessions.end(),
+    [clusterSessionId](auto& value) { return value->id() == clusterSessionId; });
+
+  if (iter != m_sessions.end())
+  {
+    auto session = std::move(*iter);
+    m_sessions.erase(iter);
+    return session;
+  }
+  else
+  {
+    return nullptr;
+  }
+}
+
+void ClusteredServiceAgent::onSessionClose(
+  std::int64_t leadershipTermId,
+  std::int64_t logPosition,
+  std::int64_t clusterSessionId,
+  std::int64_t timestamp,
+  CloseReason closeReason)
+{
+  std::cout << "ClusteredServiceAgent::onSessionClose" << std::endl;
+  m_logPosition = logPosition;
+  m_clusterTime = timestamp;
+
+  auto session = removeSession(clusterSessionId);
+  if (session == nullptr)
+  {
+    throw ClusterException(
+      std::string("unknown clusterSessionId=") + std::to_string(clusterSessionId) + " for close reason=" + std::to_string(closeReason) +
+      " leadershipTermId=" + std::to_string(leadershipTermId) + " logPosition=" + std::to_string(logPosition), SOURCEINFO);
+  }
+
+  session->disconnect(m_ctx.errorHandler());
+  m_service->onSessionClose(*session, timestamp, closeReason);
+}
+
+void ClusteredServiceAgent::onServiceTerminationPosition(std::int64_t logPosition)
+{
+  std::cout << "ClusteredServiceAgent::onServiceTerminationPosition" << std::endl;
+  m_terminationPosition = logPosition;
+}
+
+void ClusteredServiceAgent::onServiceAction(
+  std::int64_t leadershipTermId,
+  std::int64_t logPosition,
+  std::int64_t timestamp,
+  ClusterAction::Value action,
+  std::int32_t  flags)
+{
+  std::cout << "ClusteredServiceAgent::onServiceAction" << std::endl;
+  m_logPosition = logPosition;
+  m_clusterTime = timestamp;
+  executeAction(action, logPosition, leadershipTermId, flags);
+}
+
+void ClusteredServiceAgent::onMembershipChange(
+  std::int64_t logPosition,
+  std::int64_t timestamp,
+  ChangeType::Value changeType,
+  std::int32_t memberId)
+{
+  std::cout << "ClusteredServiceAgent::onMembershipChange" << std::endl;
+  m_logPosition = logPosition;
+  m_clusterTime = timestamp;
+    
+  if (memberId == m_memberId && changeType == ChangeType::Value::QUIT)
+  {
+    terminate(true);
+  }
+}
+  
+void ClusteredServiceAgent::onJoinLog(
+  std::int64_t logPosition,
+  std::int64_t maxLogPosition,
+  std::int32_t memberId,
+  std::int32_t logSessionId,
+  std::int32_t logStreamId,
+  bool isStartup,
+  Cluster::Role role,
+  const std::string &logChannel)
+{
+  std::cout << "ClusteredServiceAgent::onJoinLog" << std::endl;
+
+  m_activeLogEvent = std::make_unique<ActiveLogEvent>(
+    logPosition,
+    maxLogPosition,
+    memberId,
+    logSessionId,
+    logStreamId,
+    isStartup,
+    role,
+    logChannel);
 }
 
 void ClusteredServiceAgent::terminate(bool expected)
@@ -662,5 +803,82 @@ void ClusteredServiceAgent::terminate(bool expected)
   // TODO
 }
 
+bool ClusteredServiceAgent::joinActiveLog(ActiveLogEvent &activeLog)
+{
+  if (Cluster::Role::LEADER != activeLog.m_role)
+  {
+    // TODO
+    //disconnectEgress(ctx.countedErrorHandler());
+  }
+
+  if (activeLog.m_logSubscriptionId == NULL_VALUE)
+  {
+  
+    std::cout << "Joining active log event, adding log subscription" << std::endl;
+    auto channel = ChannelUri::parse(activeLog.m_channel);
+    channel->put(ALIAS_PARAM_NAME, m_subscriptionAlias);
+  
+    activeLog.m_logSubscriptionId = context().aeron()->addSubscription(channel->toString(), activeLog.m_streamId);
+    return false;
+  }
+
+  if (activeLog.m_subscription == nullptr)
+  {
+    std::cout << "Joining active log event, finding log subscription" << std::endl;
+    activeLog.m_subscription = context().aeron()->findSubscription(activeLog.m_logSubscriptionId);
+    return false;
+  }
+
+  if (activeLog.m_image == nullptr)
+  {
+    std::cout << "Joining active log event, finding log image" << std::endl;
+    activeLog.m_image = activeLog.m_subscription->imageBySessionId(activeLog.m_sessionId);
+    return false;
+  }
+
+  if (activeLog.m_image->joinPosition() != m_logPosition)
+    {
+      throw ClusterException(
+	std::string("Cluster log must be contiguous for joining image: ") +
+	"expectedPosition=" + std::to_string(m_logPosition) + " joinPosition=" + std::to_string(activeLog.m_image->joinPosition()),
+      SOURCEINFO);
+    }
+
+  if (activeLog.m_logPosition != m_logPosition)
+  {
+    throw ClusterException(
+      std::string("Cluster log must be contiguous for active log event: ") +
+      "expectedPosition=" + std::to_string(m_logPosition) + " eventPosition=" + std::to_string(activeLog.m_logPosition),
+      SOURCEINFO);
+  }
+
+  m_logAdapter->image(activeLog.m_image);
+  m_logAdapter->maxLogPosition(activeLog.m_maxLogPosition);
+  activeLog.m_subscription = nullptr;
+
+  ack(NULL_VALUE);
+
+  m_memberId = activeLog.m_memberId;
+  // TODO
+  //m_markFile.memberId(m_memberId);
+
+  if (Cluster::Role::LEADER == activeLog.m_role)
+  {
+    for (int i = 0; i < m_sessions.size(); i++)
+    {
+      auto& session = m_sessions[i];
+
+      if (m_ctx.isRespondingService() && !activeLog.m_isStartup)
+      {
+	session->connect(context().aeron());
+      }
+      
+      session->resetClosing();
+    }
+  }
+  
+  role(activeLog.m_role);
+  return true;
+}
 
 }}}

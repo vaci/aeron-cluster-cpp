@@ -2,4 +2,8 @@
 
 namespace aeron { namespace cluster { namespace service {
 
+Cluster::~Cluster()
+{
+}
+
 }}}

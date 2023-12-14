@@ -13,7 +13,7 @@ ContainerClientSession::ContainerClientSession(
   m_id(sessionId),
   m_responseStreamId(responseStreamId),
   m_responseChannel(responseChannel),
-  m_responseRegistration(NULL_VALUE),
+  m_responsePublicationId(NULL_VALUE),
   m_encodedPrincipal(encodedPrincipal),
   m_clusteredServiceAgent(clusteredServiceAgent)
 {
@@ -23,16 +23,41 @@ void ContainerClientSession::connect(std::shared_ptr<Aeron> aeron)
 {
   try
   {
-    if (NULL_VALUE == m_responseRegistration)
+    if (m_responsePublicationId == NULL_VALUE)
     {
-      m_responseRegistration = aeron->addPublication(m_responseChannel, m_responseStreamId);
+      m_responsePublicationId = aeron->addPublication(m_responseChannel, m_responseStreamId);
+
+      BackoffIdleStrategy idle;
+      for (int ii = 0; ii < 3; ++ii)
+      {
+	m_responsePublication = aeron->findExclusivePublication(m_responsePublicationId);
+	if (!m_responsePublication)
+	{
+	  idle.idle();
+	}
+	else
+	{
+	  break;
+	}
+      }
     }
   }
   catch (...)
   {
-    // clusteredServiceAgent.handleError(new ClusterException(
-    //				  "failed to connect session response publication: " + ex.getMessage(), AeronException.Category.WARN));
+    // TODO
+    //clusteredServiceAgent.handleError(new ClusterException(
+    //"failed to connect session response publication: " + ex.getMessage(), AeronException.Category.WARN
   }
+}
+
+void ContainerClientSession::disconnect(exception_handler_t)
+{
+  if (m_responsePublication != nullptr)
+  {
+    m_responsePublication->close();
+    m_responsePublication = nullptr;
+  }
+  m_responsePublicationId = NULL_VALUE;
 }
 
 void ContainerClientSession::close()

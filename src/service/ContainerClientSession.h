@@ -59,15 +59,7 @@ public:
     return m_isClosing;
   }
 
-  inline void disconnect()
-  {
-    if (m_responsePublication != nullptr)
-      {
-	m_responsePublication->close();
-	m_responsePublication = nullptr;
-      }
-    m_responseRegistration = NULL_VALUE;
-  }
+  void disconnect(exception_handler_t = nullptr);
 
   std::int64_t offer(AtomicBuffer& buffer);
 
@@ -91,7 +83,7 @@ private:
   std::vector<char> m_encodedPrincipal;
   ClusteredServiceAgent& m_clusteredServiceAgent;
 
-  std::int64_t m_responseRegistration;
+  std::int64_t m_responsePublicationId;;
   std::shared_ptr<ExclusivePublication> m_responsePublication;
   bool m_isClosing;
 };

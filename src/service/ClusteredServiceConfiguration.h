@@ -213,42 +213,6 @@ constexpr std::int32_t CLUSTER_ACTION_FLAGS_DEFAULT = 0;
 constexpr std::int32_t CLUSTER_ACTION_FLAGS_STANDBY_SNAPSHOT = 1;
 
 /**
- * The value {@link #SERVICE_STREAM_ID_DEFAULT} or system property
- * {@link #SERVICE_STREAM_ID_PROP_NAME} if set.
- *
- * @return {@link #SERVICE_STREAM_ID_DEFAULT} or system property
- * {@link #SERVICE_STREAM_ID_PROP_NAME} if set.
- */
-static std::int32_t serviceStreamId()
-{
-  return 0;
-  //return Integer.getInteger(SERVICE_STREAM_ID_PROP_NAME, SERVICE_STREAM_ID_DEFAULT);
-}
-  
-/**
- * The value {@link #SNAPSHOT_CHANNEL_DEFAULT} or system property {@link #SNAPSHOT_CHANNEL_PROP_NAME} if set.
- *
- * @return {@link #SNAPSHOT_CHANNEL_DEFAULT} or system property {@link #SNAPSHOT_CHANNEL_PROP_NAME} if set.
- */
-static std::string snapshotChannel()
-{
-  return "";
-  //return System.getProperty(SNAPSHOT_CHANNEL_PROP_NAME, SNAPSHOT_CHANNEL_DEFAULT);
-}
-
-/**
- * The value {@link #SNAPSHOT_STREAM_ID_DEFAULT} or system property {@link #SNAPSHOT_STREAM_ID_PROP_NAME}
- * if set.
- *
- * @return {@link #SNAPSHOT_STREAM_ID_DEFAULT} or system property {@link #SNAPSHOT_STREAM_ID_PROP_NAME} if set.
- */
-static std::int32_t snapshotStreamId()
-{
-  return 0;
-  //return Integer.getInteger(SNAPSHOT_STREAM_ID_PROP_NAME, SNAPSHOT_STREAM_ID_DEFAULT);
-}
-
-/**
  * Property to configure if this node should take standby snapshots. The default for this property is
  * <code>false</code>.
  */
@@ -455,9 +419,9 @@ public:
     return m_clusteredService;
   }
 
-  inline  this_t &clusteredService(std::shared_ptr<ClusteredService> clusteredService)
+  inline this_t &clusteredService(std::shared_ptr<ClusteredService> service)
   {
-    m_clusteredService = clusteredService;
+    m_clusteredService = service;
     return *this;
   }
 
@@ -548,30 +512,35 @@ public:
     m_logFragmentLimit = logFragmentLimit;
     return *this;
   }
-  
-private:
-  archive::client::Context m_archiveContext;
-  std::shared_ptr<Aeron> m_aeron;
-  std::string m_aeronDirectoryName = aeron::Context::defaultAeronPath();
-  std::string m_clusterDirectoryName;
-  std::int32_t m_serviceId;
-  std::string m_serviceName;
-  std::string m_controlChannel = Configuration::CONTROL_CHANNEL_DEFAULT;
-  std::string m_replayChannel = Configuration::REPLAY_CHANNEL_DEFAULT;
-  std::int32_t m_replayStreamId;
-  std::string m_snapshotChannel = Configuration::SNAPSHOT_CHANNEL_DEFAULT;
-  std::int32_t m_snapshotStreamId;
-  std::int32_t m_consensusModuleStreamId;
-  std::int32_t m_serviceStreamId;
-  std::shared_ptr<ClusteredService> m_clusteredService;
-  bool m_ownsAeronClient = false;
-  exception_handler_t m_errorHandler = nullptr;
-  std::int32_t m_appVersion;
-  std::int32_t m_clusterId;
-  bool m_isRespondingService;
-  bool m_standbySnapshotEnabled = false;
-  int m_logFragmentLimit;
 
+private:
+  
+  std::int32_t m_appVersion;
+  std::int32_t m_clusterId = Configuration::CLUSTER_ID_DEFAULT;
+  std::int32_t m_serviceId = Configuration::SERVICE_ID_DEFAULT;
+  std::string m_serviceName = Configuration::SERVICE_NAME_DEFAULT;
+  std::string m_replayChannel = Configuration::REPLAY_CHANNEL_DEFAULT;
+  std::int32_t m_replayStreamId = Configuration::REPLAY_STREAM_ID_DEFAULT;
+  std::string m_controlChannel = Configuration::CONTROL_CHANNEL_DEFAULT;
+  std::int32_t m_consensusModuleStreamId = Configuration::CONSENSUS_MODULE_STREAM_ID_DEFAULT;
+  std::int32_t m_serviceStreamId = Configuration::SERVICE_STREAM_ID_DEFAULT;
+  std::string m_snapshotChannel = Configuration::SNAPSHOT_CHANNEL_DEFAULT;
+  std::int32_t m_snapshotStreamId = Configuration::SNAPSHOT_STREAM_ID_DEFAULT;
+  bool m_isRespondingService = true;
+  int m_logFragmentLimit = Configuration::LOG_FRAGMENT_LIMIT_DEFAULT;
+
+  exception_handler_t m_errorHandler = nullptr;
+  archive::client::Context m_archiveContext;
+  std::string m_clusterDirectoryName = Configuration::CLUSTER_DIR_DEFAULT;
+  std::string m_aeronDirectoryName = aeron::Context::defaultAeronPath();
+  std::shared_ptr<Aeron> m_aeron;
+  bool m_ownsAeronClient = false;
+
+  std::shared_ptr<ClusteredService> m_clusteredService;
+  bool m_standbySnapshotEnabled = false;
+  // TODO
+  // ClusterMarkFile m_markFile;
+  
   inline void applyDefaultParams(std::string &channel) const
   {
     std::shared_ptr<ChannelUri> uri = ChannelUri::parse(channel);

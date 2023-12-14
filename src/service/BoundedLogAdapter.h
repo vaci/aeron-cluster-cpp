@@ -23,6 +23,11 @@ public:
     return m_image;
   }
 
+  void maxLogPosition(std::int64_t position)
+  {
+    m_maxLogPosition = position;
+  }
+
   void close();
 
   inline int poll(std::int64_t limit)
@@ -34,12 +39,14 @@ public:
 
 private:
   ControlledPollAction onMessage(AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header);
-  ClusteredServiceAgent& m_agent;
+
   int m_fragmentLimit;
+  std::int64_t m_maxLogPosition;
   std::shared_ptr<Image> m_image;
+  ClusteredServiceAgent& m_agent;
+  BufferBuilder m_builder{0};
   ControlledFragmentAssembler m_fragmentAssembler;
   controlled_poll_fragment_handler_t m_fragmentHandler;
-  BufferBuilder m_builder{0};
 };
 
 }}}
