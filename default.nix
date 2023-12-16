@@ -39,18 +39,19 @@ let
       "${pkgs.ekam.src}/src/ekam/rules"
 
     mkdir --parents src/codecs
-    ln --symbolic --force --target-directory=src/codecs/ \
-      "${pkgs.aeron.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-codecs.xml"
 
-    cp --target-directory=src/codecs \
-      "${pkgs.aeron.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-mark-codecs.xml"
+    ln --symbolic --force --target-directory=src/codecs/ \
+      "${aeron-cpp.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-codecs.xml"
+
+    cp --force --target-directory=src/codecs \
+      "${aeron-cpp.src}/aeron-cluster/src/main/resources/cluster/aeron-cluster-mark-codecs.xml"
 
     # fixup for C++ reserved token
     sed -i 's/\"NULL\"/\"NULL_COMPONENT\"/g' src/codecs/aeron-cluster-mark-codecs.xml
 
-    "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.client "${sbeTool}" src/codecs/aeron-cluster-codecs.xml
+    "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.codecs "${sbeTool}" src/codecs/aeron-cluster-codecs.xml
 
-    "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.service "${sbeTool}" src/codecs/aeron-cluster-mark-codecs.xml
+    "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=src -Dsbe.target.language=Cpp -Dsbe.target.namespace=aeron.cluster.codecs.mark "${sbeTool}" src/codecs/aeron-cluster-mark-codecs.xml
 
     "${jdk}/bin/java" -cp "${sbeAll.jar}" -Dsbe.output.dir=java -Dsbe.target.language=Java -Dsbe.target.namespace=com.aeroncookbook.cluster.async.sbe "${sbeTool}" resources/messages.xml
   '';

@@ -1,24 +1,26 @@
 #include "EgressPoller.h"
 
 #include "ClusterException.h"
-#include "aeron_cluster_client/Challenge.h"
-#include "aeron_cluster_client/MessageHeader.h"
-#include "aeron_cluster_client/SessionMessageHeader.h"
-#include "aeron_cluster_client/SessionEvent.h"
-#include "aeron_cluster_client/NewLeaderEvent.h"
-#include "aeron_cluster_client/AdminResponse.h"
+#include "aeron_cluster_codecs/Challenge.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/SessionMessageHeader.h"
+#include "aeron_cluster_codecs/SessionEvent.h"
+#include "aeron_cluster_codecs/NewLeaderEvent.h"
+#include "aeron_cluster_codecs/AdminResponse.h"
 
 namespace aeron { namespace cluster { namespace client {
+
+using namespace codecs;
 
 namespace {
 
 static controlled_poll_fragment_handler_t fragmentHandler(EgressPoller &poller)
 {
-    return
-        [&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
-        {
-            return poller.onFragment(buffer, offset, length, header);
-        };
+  return
+    [&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
+    {
+      return poller.onFragment(buffer, offset, length, header);
+    };
 }
 
 }

@@ -3,13 +3,14 @@
 
 #include "Aeron.h"
 #include "ControlledFragmentAssembler.h"
-#include "aeron_cluster_client/EventCode.h"
+#include "aeron_cluster_codecs/EventCode.h"
 
 namespace aeron { namespace cluster { namespace client {
 
 class EgressPoller
 {
 public:
+
   EgressPoller(
     std::shared_ptr<Subscription> subscription,
     int32_t fragmentLimit);
@@ -51,7 +52,7 @@ public:
     return m_leaderMemberId;
   }
 
-  inline EventCode::Value eventCode() const
+  inline codecs::EventCode::Value eventCode() const
   {
     return m_eventCode;
   }
@@ -100,7 +101,7 @@ private:
   int64_t m_correlationId;
   int64_t m_leadershipTermId;
   int32_t m_leaderMemberId;
-  EventCode::Value m_eventCode;
+  codecs::EventCode::Value m_eventCode;
   int32_t m_version;
   std::string m_detail;
   std::pair<const char *, std::uint32_t> m_encodedChallenge = { nullptr, 0 };

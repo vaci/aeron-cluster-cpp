@@ -1,16 +1,17 @@
 #include "ConsensusModuleProxy.h"
 #include "client/ClusterException.h"
-#include "aeron_cluster_service/MessageHeader.h"
-#include "aeron_cluster_client/BooleanType.h"
-#include "aeron_cluster_client/CancelTimer.h"
-#include "aeron_cluster_client/CloseSession.h"
-#include "aeron_cluster_client/RemoveMember.h"
-#include "aeron_cluster_client/ServiceAck.h"
-#include "aeron_cluster_client/ScheduleTimer.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/BooleanType.h"
+#include "aeron_cluster_codecs/CancelTimer.h"
+#include "aeron_cluster_codecs/CloseSession.h"
+#include "aeron_cluster_codecs/RemoveMember.h"
+#include "aeron_cluster_codecs/ServiceAck.h"
+#include "aeron_cluster_codecs/ScheduleTimer.h"
 
 namespace aeron { namespace cluster { namespace service {
 
-using BooleanType = client::BooleanType;
+using namespace codecs;
+
 using ClusterException = client::ClusterException;
 
 inline static void checkResult(std::int64_t result)
@@ -19,7 +20,7 @@ inline static void checkResult(std::int64_t result)
       result == PUBLICATION_CLOSED ||
       result == MAX_POSITION_EXCEEDED)
   {
-    throw new ClusterException(std::string("unexpected publication state: ") + std::to_string(result), SOURCEINFO);
+    throw ClusterException(std::string("unexpected publication state: ") + std::to_string(result), SOURCEINFO);
   }
 }
 
@@ -37,7 +38,7 @@ ConsensusModuleProxy::ConsensusModuleProxy(std::shared_ptr<ExclusivePublication>
 
 bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + client::CloseSession::sbeBlockLength();
+  std::uint64_t length = MessageHeader::encodedLength() + CloseSession::sbeBlockLength();
 
   int attempts = 3;
   do
@@ -47,7 +48,7 @@ bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
     if (result > 0)
     {
       auto buffer = bufferClaim.buffer();
-      client::CloseSession request;
+      CloseSession request;
       wrapAndApplyHeader(request, buffer)
 	.clusterSessionId(clusterSessionId);
       
@@ -72,7 +73,7 @@ bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
  */
 bool ConsensusModuleProxy::removeMember(std::int32_t memberId, bool isPassive)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + client::RemoveMember::sbeBlockLength();
+  std::uint64_t length = MessageHeader::encodedLength() + RemoveMember::sbeBlockLength();
 
   int attempts = 3;
   do
@@ -82,7 +83,7 @@ bool ConsensusModuleProxy::removeMember(std::int32_t memberId, bool isPassive)
     if (result > 0)
     {
       auto buffer = bufferClaim.buffer();
-      client::RemoveMember request;
+      RemoveMember request;
       wrapAndApplyHeader(request, buffer)
 	.memberId(memberId)
 	.isPassive(isPassive ? BooleanType::Value::TRUE : BooleanType::Value::FALSE);
@@ -100,7 +101,7 @@ bool ConsensusModuleProxy::removeMember(std::int32_t memberId, bool isPassive)
 
 bool ConsensusModuleProxy::scheduleTimer(std::int64_t correlationId, std::int64_t deadline)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + client::ScheduleTimer::sbeBlockLength();
+  std::uint64_t length = MessageHeader::encodedLength() + ScheduleTimer::sbeBlockLength();
 
   int attempts = 3;
   do
@@ -110,7 +111,7 @@ bool ConsensusModuleProxy::scheduleTimer(std::int64_t correlationId, std::int64_
     if (result > 0)
     {
       auto buffer = bufferClaim.buffer();
-      client::ScheduleTimer request;
+      ScheduleTimer request;
       wrapAndApplyHeader(request, buffer)
 	.correlationId(correlationId)
 	.deadline(deadline);
@@ -128,7 +129,7 @@ bool ConsensusModuleProxy::scheduleTimer(std::int64_t correlationId, std::int64_
 
 bool ConsensusModuleProxy::cancelTimer(std::int64_t correlationId)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + client::CancelTimer::sbeBlockLength();
+  std::uint64_t length = MessageHeader::encodedLength() + CancelTimer::sbeBlockLength();
 
   int attempts = 3;
   do
@@ -138,7 +139,7 @@ bool ConsensusModuleProxy::cancelTimer(std::int64_t correlationId)
     if (result > 0)
     {
       auto buffer = bufferClaim.buffer();
-      client::CancelTimer request;
+      CancelTimer request;
       wrapAndApplyHeader(request, buffer)
 	.correlationId(correlationId);
       
@@ -160,7 +161,7 @@ bool ConsensusModuleProxy::ack(
   std::int64_t relevantId,
   std::int32_t serviceId)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + client::ServiceAck::sbeBlockLength();
+  std::uint64_t length = MessageHeader::encodedLength() + ServiceAck::sbeBlockLength();
 
   int attempts = 3;
   do
@@ -170,7 +171,7 @@ bool ConsensusModuleProxy::ack(
     if (result > 0)
     {
       auto buffer = bufferClaim.buffer();
-      client::ServiceAck request;
+      ServiceAck request;
       wrapAndApplyHeader(request, buffer)
 	.logPosition(logPosition)
 	.timestamp(timestamp)
@@ -179,7 +180,8 @@ bool ConsensusModuleProxy::ack(
 	.serviceId(serviceId);
       
       bufferClaim.commit();
-      
+
+      std::cout << "Sent ACK " << ackId << std::endl;
       return true;
     }
 

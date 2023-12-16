@@ -2,18 +2,14 @@
 #include "ClusteredServiceAgent.h"
 #include "client/ClusterException.h"
 
-#include "aeron_cluster_service/MessageHeader.h"
-#include "aeron_cluster_client/JoinLog.h"
-#include "aeron_cluster_client/RequestServiceAck.h"
-#include "aeron_cluster_client/ServiceTerminationPosition.h"
+#include "aeron_cluster_codecs/JoinLog.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/RequestServiceAck.h"
+#include "aeron_cluster_codecs/ServiceTerminationPosition.h"
 
 namespace aeron { namespace cluster { namespace service {
 
-using client::ClusterException;
-using client::JoinLog;
-using client::BooleanType;
-using client::ServiceTerminationPosition;
-using client::RequestServiceAck;
+using namespace codecs;
 
 namespace {
 

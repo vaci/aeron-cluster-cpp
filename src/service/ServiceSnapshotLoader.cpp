@@ -1,16 +1,16 @@
 #include "ServiceSnapshotLoader.h"
 #include "ClusteredServiceAgent.h"
-#include "aeron_cluster_service/MessageHeader.h"
-#include "aeron_cluster_client/SnapshotMark.h"
-#include "aeron_cluster_client/SnapshotMarker.h"
-#include "aeron_cluster_client/ClientSession.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/SnapshotMark.h"
+#include "aeron_cluster_codecs/SnapshotMarker.h"
+#include "aeron_cluster_codecs/ClientSession.h"
 #include "client/ClusterException.h"
 
 namespace aeron { namespace cluster { namespace service {
 
-using ClusterException = client::ClusterException;
-using SnapshotMark = client::SnapshotMark;
-using SnapshotMarker = client::SnapshotMarker;
+using namespace codecs;
+
+using client::ClusterException;
 
 namespace {
 
@@ -41,7 +41,7 @@ std::int32_t ServiceSnapshotLoader::poll()
 
 ControlledPollAction ServiceSnapshotLoader::onFragment(AtomicBuffer buffer, util::index_t offset, util::index_t length, Header &header)
 {
-  using ClientSession = client::ClientSession;
+  using ClientSession = codecs::ClientSession;
  
   MessageHeader messageHeader(reinterpret_cast<char*>(buffer.buffer()), offset, length);
   auto schemaId = messageHeader.schemaId();

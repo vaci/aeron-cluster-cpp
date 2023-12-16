@@ -3,15 +3,16 @@
 
 #include <Aeron.h>
 
-#include "aeron_cluster_client/SnapshotMark.h"
+#include "aeron_cluster_codecs/SnapshotMark.h"
 
 namespace aeron { namespace cluster { namespace service {
 
-using client::SnapshotMark;
 
 class SnapshotTaker
 {
 public:
+  using SnapshotMark = codecs::SnapshotMark;
+
   SnapshotTaker(
     std::shared_ptr<ExclusivePublication> publication,
     std::shared_ptr<Aeron> aeron);

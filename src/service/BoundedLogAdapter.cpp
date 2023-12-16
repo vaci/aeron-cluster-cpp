@@ -5,26 +5,21 @@
 #include "client/ClusterException.h"
 #include "client/AeronCluster.h"
 
-#include "aeron_cluster_service/MessageHeader.h"
-#include "aeron_cluster_client/SessionMessageHeader.h"
-#include "aeron_cluster_client/NewLeadershipTermEvent.h"
-#include "aeron_cluster_client/SessionOpenEvent.h"
-#include "aeron_cluster_client/SessionCloseEvent.h"
-#include "aeron_cluster_client/MembershipChangeEvent.h"
-#include "aeron_cluster_client/TimerEvent.h"
-#include "aeron_cluster_client/ClusterAction.h"
-#include "aeron_cluster_client/ClusterActionRequest.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/SessionMessageHeader.h"
+#include "aeron_cluster_codecs/NewLeadershipTermEvent.h"
+#include "aeron_cluster_codecs/SessionOpenEvent.h"
+#include "aeron_cluster_codecs/SessionCloseEvent.h"
+#include "aeron_cluster_codecs/MembershipChangeEvent.h"
+#include "aeron_cluster_codecs/TimerEvent.h"
+#include "aeron_cluster_codecs/ClusterAction.h"
+#include "aeron_cluster_codecs/ClusterActionRequest.h"
 
 namespace aeron { namespace cluster { namespace service {
 
 using client::ClusterException;
-using client::SessionMessageHeader;
-using client::TimerEvent;
-using client::SessionOpenEvent;
-using client::SessionCloseEvent;
-using client::NewLeadershipTermEvent;
-using client::MembershipChangeEvent;
-using client::ClusterActionRequest;
+
+using namespace codecs;
 
 namespace {
 

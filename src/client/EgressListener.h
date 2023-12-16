@@ -1,6 +1,11 @@
 #ifndef AERON_CLUSTER_EGRESS_LISTENER_H
 #define AERON_CLUSTER_EGRESS_LISTENER_H
 
+#include "Aeron.h"
+#include "aeron_cluster_codecs/EventCode.h"
+#include "aeron_cluster_codecs/AdminRequestType.h"
+#include "aeron_cluster_codecs/AdminResponseCode.h"
+
 namespace aeron { namespace cluster { namespace client {
 
 struct EgressListener
@@ -40,7 +45,7 @@ struct EgressListener
     std::int64_t clusterSessionId,
     std::int64_t leadershipTermId,
     std::int32_t leaderMemberId,
-    EventCode code,
+    codecs::EventCode::Value code,
     const std::string &detail)
   {
   }
@@ -76,8 +81,8 @@ struct EgressListener
   virtual void onAdminResponse(
     std::int64_t clusterSessionId,
     std::int64_t correlationId,
-    AdminRequestType requestType,
-    AdminResponseCode responseCode,
+    codecs::AdminRequestType requestType,
+    codecs::AdminResponseCode responseCode,
     const std::string &message,
     AtomicBuffer payload,
     std::int32_t payloadOffset,

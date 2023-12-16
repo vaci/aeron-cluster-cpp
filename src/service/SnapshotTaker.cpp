@@ -2,13 +2,13 @@
 #include "ClusterClock.h"
 #include "client/ClusterException.h"
 #include "client/AeronArchive.h"
-#include "aeron_cluster_client/SnapshotMarker.h"
-#include "aeron_cluster_client/ClusterTimeUnit.h"
+#include "aeron_cluster_codecs/SnapshotMarker.h"
+#include "aeron_cluster_codecs/ClusterTimeUnit.h"
 
 namespace aeron { namespace cluster { namespace service {
 
-using client::SnapshotMarker;
-using client::ClusterTimeUnit;
+using namespace codecs;
+
 using client::ClusterException;
 
 namespace {

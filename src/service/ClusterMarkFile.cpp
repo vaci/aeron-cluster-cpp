@@ -6,6 +6,9 @@
 
 namespace aeron { namespace cluster { namespace service {
 
+using namespace codecs;
+using namespace codecs::mark;
+
 using ClusterException = client::ClusterException;
 
 bool ClusterMarkFile::isServiceMarkFile(const std::string &path)

@@ -2,10 +2,10 @@
 #define AERON_CLUSTER_AERON_CLUSTER_H
 
 #include "Aeron.h"
+#include "client/AeronArchive.h"
 #include "ClusterConfiguration.h"
-#include "client/ArchiveConfiguration.h"
-#include "aeron_cluster_client/MessageHeader.h"
-#include "aeron_cluster_client/SessionMessageHeader.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/SessionMessageHeader.h"
 #include "ControlledEgressListener.h"
 #include "EgressPoller.h"
 #include "EgressAdapter.h"
@@ -18,6 +18,9 @@ namespace aeron { namespace cluster { namespace client {
 class AeronCluster
 {
 public:
+  using MessageHeader = codecs::MessageHeader;
+  using SessionMessageHeader = codecs::SessionMessageHeader;
+
   /**
    * Length of a session message header for cluster ingress or egress.
    */
@@ -29,7 +32,7 @@ public:
   public:
     using this_t = Context;
     using CredentialsSupplier = archive::client::CredentialsSupplier;
- 
+
     /**
      * Set the message timeout in nanoseconds to wait for sending or receiving a message.
      *
@@ -207,7 +210,7 @@ public:
     {
       return m_aeronDirectoryName;
     }
-    
+
     /**
      * {@link Aeron} client for communicating with the local Media Driver.
      * <p>
@@ -247,7 +250,7 @@ public:
       m_ownsAeronClient = ownsAeronClient;
       return *this;
     }
-    
+
     /**
      * Does this context own the {@link #aeron()} client and this takes responsibility for closing it?
      *
@@ -258,14 +261,14 @@ public:
       return m_ownsAeronClient;
     }
 
-        /**
+    /**
      * Get the error handler that will be called for asynchronous errors.
      *
      * @return the error handler that will be called for asynchronous errors.
      */
     inline exception_handler_t errorHandler() const
     {
-        return m_errorHandler;
+      return m_errorHandler;
     }
 
     /**
@@ -276,8 +279,8 @@ public:
      */
     inline this_t &errorHandler(const exception_handler_t &errorHandler)
     {
-        m_errorHandler = errorHandler;
-        return *this;
+      m_errorHandler = errorHandler;
+      return *this;
     }
 
     /**
@@ -355,10 +358,10 @@ public:
      */
     inline this_t &credentialsSupplier(const CredentialsSupplier &supplier)
     {
-        m_credentialsSupplier.m_encodedCredentials = supplier.m_encodedCredentials;
-        m_credentialsSupplier.m_onChallenge = supplier.m_onChallenge;
-        m_credentialsSupplier.m_onFree = supplier.m_onFree;
-        return *this;
+      m_credentialsSupplier.m_encodedCredentials = supplier.m_encodedCredentials;
+      m_credentialsSupplier.m_onChallenge = supplier.m_onChallenge;
+      m_credentialsSupplier.m_onFree = supplier.m_onFree;
+      return *this;
     }
 
     void conclude();
@@ -430,7 +433,7 @@ public:
 	'}';
     }
   };
-  
+
   using MemberIngressMap = std::map<std::int32_t, MemberIngress>;
 
   class AsyncConnect
@@ -456,7 +459,7 @@ public:
     {
       return m_step;
     }
-    
+
   private:
 
     void step(int newStep)
@@ -477,7 +480,6 @@ public:
     void updateMembers();
     static const char* stepName(int step);
 
-    
     std::int64_t m_deadlineNs;
     std::unique_ptr<Context> m_ctx;
     std::int64_t m_correlationId = NULL_VALUE;
@@ -495,7 +497,7 @@ public:
     std::shared_ptr<ExclusivePublication> m_ingressPublication;
 
     std::unique_ptr<Image> m_egressImage;
-    
+
     std::uint8_t m_buffer[1024];
   };
 
@@ -536,12 +538,11 @@ private:
   Image m_egressImage;
   std::shared_ptr<ExclusivePublication> m_publication;
   char m_headerBuffer[SESSION_HEADER_LENGTH];
-  MessageHeader m_message;
-  SessionMessageHeader m_sessionMessage;
+  codecs::MessageHeader m_message;
+  codecs::SessionMessageHeader m_sessionMessage;
   MemberIngressMap m_memberByIdMap;
 
   friend class AsyncConnect;
-  
 };
 
 }}}

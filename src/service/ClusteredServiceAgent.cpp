@@ -11,6 +11,8 @@
 
 namespace aeron { namespace cluster { namespace service {
 
+using namespace codecs;
+
 using client::ClusterException;
 
 typedef std::function<void(
@@ -337,7 +339,8 @@ void ClusteredServiceAgent::ack(std::int64_t relevantId)
 {
   std::int64_t id = m_ackId++;
   std::int64_t timestamp = m_clusterTime;
-    
+
+  std::cout << "Ack: " << id << std::endl;
   if (m_ackQueue.empty() && m_proxy->ack(
       m_logPosition,
       m_clusterTime,
@@ -345,11 +348,14 @@ void ClusteredServiceAgent::ack(std::int64_t relevantId)
       relevantId,
       m_serviceId))
   {
+
+    std::cout << "Ack done: " << id << std::endl;
     ackDone(relevantId);
     return;
   }
   else
   {
+    std::cout << "Ack queued: " << relevantId << std::endl;
     m_ackQueue.push({m_logPosition, m_clusterTime, id, relevantId, m_serviceId});
   }
   
@@ -446,9 +452,9 @@ std::int64_t ClusteredServiceAgent::offer(AtomicBuffer& message)
     .clusterSessionId(context().serviceId());
 
   AtomicBuffer atomicBuffer;
+  // TODO
   return m_proxy->offer(atomicBuffer, message);
 }
-
 
 void ClusteredServiceAgent::onTimerEvent(
   std::int64_t logPosition, std::int64_t correlationId, std::int64_t timestamp)
@@ -762,7 +768,7 @@ void ClusteredServiceAgent::onServiceAction(
 void ClusteredServiceAgent::onMembershipChange(
   std::int64_t logPosition,
   std::int64_t timestamp,
-  ChangeType::Value changeType,
+  codecs::ChangeType::Value changeType,
   std::int32_t memberId)
 {
   std::cout << "ClusteredServiceAgent::onMembershipChange" << std::endl;

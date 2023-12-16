@@ -2,9 +2,9 @@
 #define AERON_CLUSTER_EGRESS_ADAPTER_H
 
 #include "FragmentAssembler.h"
-#include "aeron_cluster_client/EventCode.h"
-#include "aeron_cluster_client/AdminResponseCode.h"
-#include "aeron_cluster_client/AdminRequestType.h"
+#include "aeron_cluster_codecs/EventCode.h"
+#include "aeron_cluster_codecs/AdminResponseCode.h"
+#include "aeron_cluster_codecs/AdminRequestType.h"
 
 namespace aeron { namespace cluster { namespace client {
 
@@ -21,7 +21,7 @@ typedef std::function<void(
     std::int64_t clusterSessionId,
     std::int64_t leadershipTermId,
     std::int32_t leaderMemberId,
-    EventCode::Value code,
+    codecs::EventCode::Value code,
     const std::string &errorMessage)> on_session_event_t;
 
 typedef std::function<void(
@@ -33,8 +33,8 @@ typedef std::function<void(
 typedef std::function<void(
     std::int64_t sessionId,
     std::int64_t correlationId,
-    AdminRequestType::Value requestType,
-    AdminResponseCode::Value code,
+    codecs::AdminRequestType::Value requestType,
+    codecs::AdminResponseCode::Value code,
     const std::string& message,
     AtomicBuffer buffer,
     util::index_t offset,

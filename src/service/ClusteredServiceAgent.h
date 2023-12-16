@@ -13,9 +13,10 @@
 #include "ClusteredService.h"
 #include "ClusterMarkFile.h"
 #include "ClusteredServiceConfiguration.h"
-#include "aeron_cluster_client/SessionMessageHeader.h"
-#include "aeron_cluster_client/ClusterAction.h"
-#include "aeron_cluster_client/ChangeType.h"
+
+#include "aeron_cluster_codecs/SessionMessageHeader.h"
+#include "aeron_cluster_codecs/ClusterAction.h"
+#include "aeron_cluster_codecs/ChangeType.h"
 
 #include <unordered_map>
 #include <vector>
@@ -25,18 +26,15 @@ namespace aeron { namespace cluster { namespace service {
 
 using AeronArchive = archive::client::AeronArchive;
 
-using client::SessionMessageHeader;
-using client::ClusterAction;
-using client::ChangeType;
-
 class ServiceSnapshotLoader;
 class ClusteredServiceAgent;
-
 
 class ClusteredServiceAgent :
     public Cluster
 {
 public:
+  using ClusterAction = codecs::ClusterAction;
+
   enum class CurrentAction {
     NONE,
     TAKING_SNAPSHOT
@@ -221,7 +219,7 @@ private:
   void onMembershipChange(
     std::int64_t logPosition,
     std::int64_t timestamp,
-    ChangeType::Value changeType,
+    codecs::ChangeType::Value changeType,
     std::int32_t memberId);
 
   void onJoinLog(

@@ -2,8 +2,8 @@
 #define AERON_CLUSTER_INGRESS_SESSION_DECORATOR_H
 
 #include "Aeron.h"
-#include "aeron_cluster_client/MessageHeader.h"
-#include "aeron_cluster_client/SessionMessageHeader.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/SessionMessageHeader.h"
 
 namespace aeron { namespace cluster { namespace client {
 
@@ -49,9 +49,9 @@ public:
 
 private:
   static constexpr std::uint64_t HEADER_LENGTH =
-    MessageHeader::encodedLength() + SessionMessageHeader::sbeBlockLength();
+    codecs::MessageHeader::encodedLength() + codecs::SessionMessageHeader::sbeBlockLength();
   
-  SessionMessageHeader m_message;
+  codecs::SessionMessageHeader m_message;
   char m_headerBuffer[HEADER_LENGTH];
 };
 

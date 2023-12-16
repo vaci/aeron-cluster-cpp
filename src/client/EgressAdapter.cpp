@@ -1,12 +1,14 @@
 #include "EgressAdapter.h"
 #include "ClusterException.h"
-#include "aeron_cluster_client/MessageHeader.h"
-#include "aeron_cluster_client/SessionMessageHeader.h"
-#include "aeron_cluster_client/SessionEvent.h"
-#include "aeron_cluster_client/NewLeaderEvent.h"
-#include "aeron_cluster_client/AdminResponse.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/SessionMessageHeader.h"
+#include "aeron_cluster_codecs/SessionEvent.h"
+#include "aeron_cluster_codecs/NewLeaderEvent.h"
+#include "aeron_cluster_codecs/AdminResponse.h"
 
 namespace aeron { namespace cluster { namespace client {
+
+using namespace codecs;
 
 namespace {
 

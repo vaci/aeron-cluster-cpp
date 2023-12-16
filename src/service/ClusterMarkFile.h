@@ -1,9 +1,11 @@
 #ifndef AERON_CLUSTER_SERVICE_CLUSTER_MARK_FILE_H
 #define AERON_CLUSTER_SERVICE_CLUSTER_MARK_FILE_H
 
-#include <Aeron.h>
-#include "aeron_cluster_service/ClusterComponentType.h"
-#include "aeron_cluster_service/MarkFileHeader.h"
+#include "Aeron.h"
+
+#include "aeron_cluster_codecs_mark/ClusterComponentType.h"
+#include "aeron_cluster_codecs_mark/MarkFileHeader.h"
+
 #include <limits>
 
 namespace aeron { namespace cluster { namespace service {
@@ -44,7 +46,7 @@ public:
 
   ClusterMarkFile(
     const std::string &filename,
-    ClusterComponentType::Value type,
+    codecs::mark::ClusterComponentType::Value type,
     std::int32_t errorBufferLength,
     EpochClock &epochClock,
     int64_t timeoutMs);
@@ -103,7 +105,7 @@ public:
 private:
   AtomicBuffer m_buffer;
   std::shared_ptr<MemoryMappedFile> m_mapFile;
-  MarkFileHeader m_header;
+  codecs::mark::MarkFileHeader m_header;
 };
 
 }}}

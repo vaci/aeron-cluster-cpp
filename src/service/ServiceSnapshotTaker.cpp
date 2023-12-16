@@ -1,14 +1,15 @@
 #include "ServiceSnapshotTaker.h"
 #include "ClientSession.h"
 
-#include "aeron_cluster_service/MessageHeader.h"
-#include "aeron_cluster_client/ClientSession.h"
+#include "aeron_cluster_codecs/MessageHeader.h"
+#include "aeron_cluster_codecs/ClientSession.h"
 #include "client/AeronArchive.h"
 #include "client/ClusterException.h"
 
 namespace aeron { namespace cluster { namespace service {
 
-using ClientSessionMessage = client::ClientSession;
+using namespace codecs;
+
 using client::ClusterException;
 
 static inline void checkResult(std::int64_t result)
@@ -32,9 +33,9 @@ bool ServiceSnapshotTaker::snapshotSession(ClientSession &session)
 {
   auto& responseChannel = session.responseChannel();
   auto& encodedPrincipal = session.encodedPrincipal();
-  std::int32_t length = ClientSessionMessage::sbeBlockAndHeaderLength() +
-    ClientSessionMessage::responseChannelHeaderLength() + responseChannel.length() +
-    ClientSessionMessage::encodedPrincipalHeaderLength() + encodedPrincipal.size();
+  std::int32_t length = codecs::ClientSession::sbeBlockAndHeaderLength() +
+    codecs::ClientSession::responseChannelHeaderLength() + responseChannel.length() +
+    codecs::ClientSession::encodedPrincipalHeaderLength() + encodedPrincipal.size();
 
   if (length <= m_publication->maxPayloadLength())
   {
@@ -74,11 +75,11 @@ void ServiceSnapshotTaker::encodeSession(
   ClientSession &session,
   const std::string &responseChannel,
   const std::vector<char> &encodedPrincipal,
-  AtomicBuffer &buffer)
+  AtomicBuffer &buffer) 
 {
   MessageHeader header;
 
-  ClientSessionMessage message;
+  codecs::ClientSession message;
   message
     .wrapAndApplyHeader(reinterpret_cast<char*>(buffer.buffer()), 0, buffer.capacity())
     .clusterSessionId(session.id())

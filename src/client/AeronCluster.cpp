@@ -3,10 +3,12 @@
 #include "ChannelUri.h"
 #include "ClusterException.h"
 
-#include "aeron_cluster_client/SessionConnectRequest.h"
-#include "aeron_cluster_client/ChallengeResponse.h"
+#include "aeron_cluster_codecs/SessionConnectRequest.h"
+#include "aeron_cluster_codecs/ChallengeResponse.h"
 
 namespace aeron { namespace cluster { namespace client {
+
+using namespace codecs;
 
 constexpr std::int32_t FRAGMENT_LIMIT = 10;
 
