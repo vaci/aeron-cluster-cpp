@@ -23,8 +23,8 @@ static inline void checkResult(std::int64_t result)
 }
 
 ServiceSnapshotTaker::ServiceSnapshotTaker(
-  std::shared_ptr<ExclusivePublication> publication, std::shared_ptr<Aeron> aeron) :
-  SnapshotTaker(publication, aeron)
+  std::shared_ptr<ExclusivePublication> publication) :
+  SnapshotTaker(publication)
 {
 }
 

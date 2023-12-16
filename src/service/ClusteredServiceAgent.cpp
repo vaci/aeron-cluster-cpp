@@ -519,7 +519,7 @@ void ClusteredServiceAgent::snapshotState(
   std::int64_t logPosition,
   std::int64_t leadershipTermId)
 {
-  ServiceSnapshotTaker snapshotTaker(publication, m_ctx.aeron());
+  ServiceSnapshotTaker snapshotTaker(publication);
 
   snapshotTaker.markBegin(Configuration::SNAPSHOT_TYPE_ID, logPosition, leadershipTermId, 0, m_ctx.appVersion());
 

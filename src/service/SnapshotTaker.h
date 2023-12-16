@@ -13,19 +13,17 @@ class SnapshotTaker
 public:
   using SnapshotMark = codecs::SnapshotMark;
 
-  SnapshotTaker(
-    std::shared_ptr<ExclusivePublication> publication,
-    std::shared_ptr<Aeron> aeron);
+  explicit SnapshotTaker(std::shared_ptr<ExclusivePublication> publication);
 
-      /**
-     * Mark the beginning of the encoded snapshot.
-     *
-     * @param snapshotTypeId   type to identify snapshot within a cluster.
-     * @param logPosition      at which the snapshot was taken.
-     * @param leadershipTermId at which the snapshot was taken.
-     * @param snapshotIndex    so the snapshot can be sectioned.
-     * @param appVersion       associated with the snapshot from {@link ClusteredServiceContainer.Context#appVersion()}.
-     */
+  /**
+   * Mark the beginning of the encoded snapshot.
+   *
+   * @param snapshotTypeId   type to identify snapshot within a cluster.
+   * @param logPosition      at which the snapshot was taken.
+   * @param leadershipTermId at which the snapshot was taken.
+   * @param snapshotIndex    so the snapshot can be sectioned.
+   * @param appVersion       associated with the snapshot from {@link ClusteredServiceContainer.Context#appVersion()}.
+   */
   inline bool markBegin(
     std::int64_t snapshotTypeId,
     std::int64_t logPosition,
@@ -57,7 +55,6 @@ public:
       snapshotTypeId, logPosition, leadershipTermId, snapshotIndex, SnapshotMark::END, appVersion);
   }
 
-
   bool markSnapshot(
     std::int64_t snapshotTypeId,
     std::int64_t logPosition,
@@ -68,7 +65,6 @@ public:
 
 protected:
   std::shared_ptr<ExclusivePublication> m_publication;
-  std::shared_ptr<Aeron> m_aeron;
 };
 
 }}}

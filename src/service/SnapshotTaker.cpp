@@ -26,10 +26,8 @@ static inline void checkResult(std::int64_t result)
 }
 
 SnapshotTaker::SnapshotTaker(
-  std::shared_ptr<ExclusivePublication> publication,
-  std::shared_ptr<Aeron> aeron) :
-  m_publication(publication),
-  m_aeron(aeron)
+  std::shared_ptr<ExclusivePublication> publication) :
+  m_publication(publication)
 {
 }
 
@@ -41,7 +39,6 @@ bool SnapshotTaker::markSnapshot(
   SnapshotMark::Value snapshotMark,
   std::int32_t  appVersion)
 {
-
   BufferClaim bufferClaim;
   std::int64_t result = m_publication->tryClaim(SnapshotMarker::sbeBlockAndHeaderLength(), bufferClaim);
   if (result > 0)

@@ -11,7 +11,7 @@ class ClientSession;
 class ServiceSnapshotTaker : public SnapshotTaker
 {
 public:
-  explicit ServiceSnapshotTaker(std::shared_ptr<ExclusivePublication>, std::shared_ptr<Aeron> aeron);
+  explicit ServiceSnapshotTaker(std::shared_ptr<ExclusivePublication>);
 
   bool snapshotSession(ClientSession &session);
 
