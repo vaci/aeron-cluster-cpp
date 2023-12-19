@@ -30,10 +30,6 @@ public:
 
   inline int poll()
   {
-    std::cout << "ServiceAdapter::poll: "
-	      << m_subscription->channel() << ":" << m_subscription->streamId()
-	      << (m_subscription->isClosed() ? " closed " : " open ")
-	      << std::endl;
     return m_subscription->poll(m_fragmentHandler, FRAGMENT_LIMIT);
   }
 

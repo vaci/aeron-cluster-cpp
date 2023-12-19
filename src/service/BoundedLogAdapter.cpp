@@ -229,8 +229,7 @@ ControlledPollAction BoundedLogAdapter::onFragment(AtomicBuffer &buffer, util::i
 
   if ((flags & UNFRAGMENTED) == UNFRAGMENTED)
   {
-    AtomicBuffer buffer(buffer.buffer()+offset, length);
-    action = onMessage(buffer, 0, buffer.capacity(), header);
+    action = onMessage(buffer, offset, length, header);
   }
   else if ((flags & BEGIN_FRAG) == BEGIN_FRAG)
   {
@@ -248,8 +247,9 @@ ControlledPollAction BoundedLogAdapter::onFragment(AtomicBuffer &buffer, util::i
 
     if ((flags & END_FRAG) == END_FRAG)
     {
+      // TODO fix length
       AtomicBuffer buffer(m_builder.buffer(), m_builder.limit());
-      action = onMessage(buffer, 0, buffer.capacity(), header);
+      action = onMessage(buffer, offset, length, header);
       
       if (ControlledPollAction::ABORT == action)
       {

@@ -45,6 +45,7 @@ public:
     m_publication->close();
   }
 
+  /*
   std::int64_t offer(AtomicBuffer& header, AtomicBuffer& buffer)
   {
     std::array<AtomicBuffer, 2> buffers;
@@ -52,6 +53,7 @@ public:
     buffers[1] = buffer;
     return m_publication->offer(buffers);
   }
+  */
 
 private:
   std::shared_ptr<ExclusivePublication> m_publication;

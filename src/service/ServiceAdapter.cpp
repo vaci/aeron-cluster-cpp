@@ -16,7 +16,7 @@ namespace {
 static aeron::fragment_handler_t fragmentHandler(ServiceAdapter &adapter)
 {
   return
-    [&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
+    [&](AtomicBuffer &buffer, auto offset, auto length, Header &header)
     {
       adapter.onFragment(buffer, offset, length, header);
     };
@@ -38,9 +38,11 @@ ServiceAdapter::~ServiceAdapter()
 
 void ServiceAdapter::onFragment(AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
 {
-  std::cout << "ServiceAdapter::onFragment" << std::endl;
-  MessageHeader messageHeader;
+  std::cout << "ServiceAdapter::onFragment: offset=" << offset << " length=" << length << std::endl;
+  MessageHeader messageHeader(buffer.sbeData() + offset, length);
+  //messageHeader.wrap(buffer.sbeData(), offset, MessageHeader::sbeSchemaVersion(), length);
 
+  std::cout << messageHeader << std::endl; 
   std::int32_t schemaId = messageHeader.schemaId();
   if (schemaId != MessageHeader::sbeSchemaId())
   {
@@ -48,19 +50,21 @@ void ServiceAdapter::onFragment(AtomicBuffer &buffer, util::index_t offset, util
       std::string("expected schemaId=") + std::to_string(MessageHeader::sbeSchemaId()) +
       ", actual=" + std::to_string(schemaId), SOURCEINFO);
   }
-  
+
+ 
   switch (messageHeader.templateId())
   {
-  case JoinLog::sbeTemplateId():
+  case JoinLog::SBE_TEMPLATE_ID:
     {
       JoinLog joinLog;
       joinLog.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+	1024);
 
+      std::cout << joinLog << std::endl;
       m_agent->onJoinLog(
 	joinLog.logPosition(),
 	joinLog.maxLogPosition(),
@@ -70,35 +74,40 @@ void ServiceAdapter::onFragment(AtomicBuffer &buffer, util::index_t offset, util
 	joinLog.isStartup() == BooleanType::TRUE,
 	Cluster::getRole(joinLog.role()),
 	joinLog.logChannel());
-      break;
     }
-  case ServiceTerminationPosition::sbeTemplateId():
+    break;
+
+  case ServiceTerminationPosition::SBE_TEMPLATE_ID:
     {
-      ServiceTerminationPosition serviceTerminationPosition;
+      std::cout << "ServiceTerminationPosition" << std::endl;
+      ServiceTerminationPosition serviceTerminationPosition{};
       serviceTerminationPosition.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+	1024);
       
+      std::cout << serviceTerminationPosition << std::endl;
       m_agent->onServiceTerminationPosition(serviceTerminationPosition.logPosition());
-      break;
     }
-    
-  case RequestServiceAck::sbeTemplateId():
+    break;
+
+  case RequestServiceAck::SBE_TEMPLATE_ID:
     {
-      RequestServiceAck requestServiceAck;
+      std::cout << "RequestServiceAck" << std::endl;
+      RequestServiceAck requestServiceAck{};
       requestServiceAck.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+	1024);
       
+      std::cout << requestServiceAck << std::endl;
       m_agent->onRequestServiceAck(requestServiceAck.logPosition());
-      break;
     }
+    break;
   }
 }
 

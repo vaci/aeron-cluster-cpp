@@ -241,7 +241,7 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
 
   if (m_step == 4)
   {
-    std::cout << "step 4" << std::endl;
+    std::cout << "step 4, sending ack" << std::endl;
     m_agent->ack(m_ctx.aeron()->clientId());
     
     m_agent->m_isServiceActive = true;
@@ -314,73 +314,55 @@ void ClusteredServiceAgent::doWork()
     m_currentSnapshot = nullptr;
   }
 
-  
-  processAckQueue();
+  if (!processAckQueue())
+  {
+    return;
+  }
 
   pollServiceAdapter();
 
   if (m_logAdapter->image() != nullptr)
   {
     auto position = m_commitPosition->get();
-    std::cout << "Polling log adapter: " << position << std::endl;
     m_logAdapter->poll(position);
-  }
-}
-
-void ClusteredServiceAgent::ackDone(std::int64_t relevantId)
-{
-  if (relevantId == NULL_VALUE)
-  {
-    m_requestedAckPosition = archive::client::NULL_POSITION;
   }
 }
 
 void ClusteredServiceAgent::ack(std::int64_t relevantId)
 {
   std::int64_t id = m_ackId++;
-  std::int64_t timestamp = m_clusterTime;
-
-  std::cout << "Ack: " << id << std::endl;
-  if (m_ackQueue.empty() && m_proxy->ack(
-      m_logPosition,
-      m_clusterTime,
-      id,
-      relevantId,
-      m_serviceId))
-  {
-
-    std::cout << "Ack done: " << id << std::endl;
-    ackDone(relevantId);
-    return;
-  }
-  else
-  {
-    std::cout << "Ack queued: " << relevantId << std::endl;
-    m_ackQueue.push({m_logPosition, m_clusterTime, id, relevantId, m_serviceId});
-  }
-  
+  m_currentAck = std::make_unique<Ack>(Ack{m_logPosition, m_clusterTime, id, relevantId, m_serviceId});
+  std::cout << "Ack queued: " <<
+    " relevantId:" << relevantId <<
+    " ackId:" << id <<
+    " serviceId:" << m_serviceId <<
+    " logPosition:" << m_logPosition <<
+    " timestamp:" << m_clusterTime << std::endl;
 }
 
-void ClusteredServiceAgent::processAckQueue()
+bool ClusteredServiceAgent::processAckQueue()
 {
-  while (!m_ackQueue.empty())
+  if (m_currentAck == nullptr)
   {
-    auto& ack = m_ackQueue.front();
-    if (m_proxy->ack(
-	ack.m_logPosition,
-	ack.m_timestamp,
-	ack.m_ackId,
-	ack.m_relevantId,
-	ack.m_serviceId))
-    {
-      ackDone(ack.m_relevantId);
-      m_ackQueue.pop();      
-    }
-    else
-    {
-      break;
-    }
+    return true;
   }
+  
+  if (m_proxy->ack(
+	m_currentAck->m_logPosition,
+	m_currentAck->m_timestamp,
+	m_currentAck->m_ackId,
+	m_currentAck->m_relevantId,
+	m_currentAck->m_serviceId))
+  {
+    if (m_currentAck->m_relevantId == NULL_VALUE)
+    {
+      m_requestedAckPosition = archive::client::NULL_POSITION;
+    }
+    m_currentAck = nullptr;
+    return true;
+  }
+
+  return false;
 }
 
 void ClusteredServiceAgent::onNewLeadershipTermEvent(
@@ -453,7 +435,8 @@ std::int64_t ClusteredServiceAgent::offer(AtomicBuffer& message)
 
   AtomicBuffer atomicBuffer;
   // TODO
-  return m_proxy->offer(atomicBuffer, message);
+  return 0;
+  //return m_proxy->offer(atomicBuffer, message);
 }
 
 void ClusteredServiceAgent::onTimerEvent(
@@ -488,7 +471,7 @@ void ClusteredServiceAgent::onTakeSnapshot(std::int64_t logPosition, std::int64_
 {
   m_currentSnapshot = std::make_unique<SnapshotState>(*this);
   m_currentSnapshot->m_publicationId = m_ctx.aeron()->addExclusivePublication(
-      m_ctx.snapshotChannel(), m_ctx.snapshotStreamId());
+    m_ctx.snapshotChannel(), m_ctx.snapshotStreamId());
 }
 
 void ClusteredServiceAgent::disconnectEgress(exception_handler_t errorHandler)
@@ -581,11 +564,12 @@ ClusteredServiceAgent::SnapshotState::SnapshotState(ClusteredServiceAgent& agent
 
 bool ClusteredServiceAgent::SnapshotState::doWork()
 {
-  auto& counters = m_agent.context().aeron()->countersReader();
+  auto aeron = m_agent.context().aeron();
+  auto& counters = aeron->countersReader();
 
   if (!m_publication)
   {
-    m_publication = m_agent.context().aeron()->findExclusivePublication(m_publicationId);
+    m_publication = aeron->findExclusivePublication(m_publicationId);
     if (!m_publication)
     {
       return false;
@@ -629,9 +613,8 @@ int ClusteredServiceAgent::pollServiceAdapter()
 {
   int workCount = 0;
 
-  std::cout << "Polling service adapter" << std::endl;
   workCount += m_serviceAdapter->poll();
-  
+
   if (nullptr != m_activeLogEvent && nullptr == m_logAdapter->image())
   {
     std::cout << "Joining active log event" << std::endl;
@@ -646,6 +629,7 @@ int ClusteredServiceAgent::pollServiceAdapter()
   {
     if (m_logPosition > m_terminationPosition)
     {
+      std::cout << "Error, terminating" << std::endl;
       //TODO
       // ctx.countedErrorHandler().onError(new ClusterEvent(
       //  "service terminate: logPosition=" + logPosition + " > terminationPosition=" + terminationPosition));
@@ -658,6 +642,7 @@ int ClusteredServiceAgent::pollServiceAdapter()
   {
     if (m_logPosition > m_requestedAckPosition)
     {
+      std::cout << "Error, terminating" << std::endl;
       // TODO
       /*
       ctx.countedErrorHandler().onError(new ClusterEvent(

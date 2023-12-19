@@ -3,7 +3,9 @@
 #include "ClusteredServiceConfiguration.h"
 
 using namespace ::aeron::cluster::service;
-using IdleStrategy = ::aeron::concurrent::SleepingIdleStrategy;
+using ::aeron::concurrent::SleepingIdleStrategy;
+using ::aeron::concurrent::BackoffIdleStrategy;
+using ::aeron::concurrent::YieldingIdleStrategy;
 
 struct TestService
   : ClusteredService
@@ -58,9 +60,9 @@ struct TestService
 int main(int argc, char **argv)
 {
   Context ctx{};
-  ctx.clusterDirectoryName("./cluster-1");
+  //  ctx.clusterDirectoryName("./cluster-1");
   ctx.serviceId(0);
-  ctx.serviceName("service-1");
+  //ctx.serviceName("service-1");
   //ctx.serviceStreamId(104);
   ctx.archiveContext().controlRequestChannel("aeron:ipc");
   ctx.archiveContext().controlResponseChannel("aeron:ipc");
@@ -72,12 +74,13 @@ int main(int argc, char **argv)
   {
     std::cout << "Aeron is not null" << std::endl;
   }
-  IdleStrategy idle(std::chrono::milliseconds(1000));
+
+  YieldingIdleStrategy idle;
 
   auto cluster = asyncConnect->poll();
   while (cluster == nullptr)
   {
-    idle.idle(0);
+    idle.idle();
     if (ctx.aeron()->usesAgentInvoker())
     {
       std::cout << "Invoking..." << std::endl;
@@ -86,9 +89,10 @@ int main(int argc, char **argv)
     cluster = asyncConnect->poll();
   }
 
+  std::cout << "Clustered service started..." << std::endl;
   while (true)
   {
-    idle.idle(0);
+    idle.idle();
     cluster->doWork();
   }
 }

@@ -290,14 +290,13 @@ private:
     std::int32_t m_serviceId;
   };
 
-  std::queue<Ack> m_ackQueue;
+  std::unique_ptr<Ack> m_currentAck;
   std::unique_ptr<ActiveLogEvent> m_activeLogEvent;
 
   void onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId);
-  void processAckQueue();
+  bool processAckQueue();
   int pollServiceAdapter();
   void ack(std::int64_t relevantId);
-  void ackDone(std::int64_t relevantId);
 };
 
 inline void ClusteredServiceAgent::executeAction(

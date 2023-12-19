@@ -24,36 +24,22 @@ inline static void checkResult(std::int64_t result)
   }
 }
 
-template<typename Codec>
-inline static Codec &wrapAndApplyHeader(Codec &codec, AtomicBuffer &buffer)
+template <typename Codec, typename Func>
+bool offer(std::shared_ptr<ExclusivePublication> publication, Func func)
 {
-    return codec.wrapAndApplyHeader(buffer.sbeData(), 0, static_cast<std::uint64_t>(buffer.capacity()));
-}
-
-
-ConsensusModuleProxy::ConsensusModuleProxy(std::shared_ptr<ExclusivePublication> publication) :
-  m_publication(publication)
-{
-}
-
-bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
-{
-  std::uint64_t length = MessageHeader::encodedLength() + CloseSession::sbeBlockLength();
+  auto length = Codec::sbeBlockAndHeaderLength();
+  unsigned char data[length];
+  AtomicBuffer buffer(data, length);
+    
+  Codec request{};
+  request.wrapAndApplyHeader(buffer.sbeData(), 0, length);
+  func(request);
 
   int attempts = 3;
   do
   {
-    BufferClaim bufferClaim;
-    std::int64_t result = m_publication->tryClaim(length, bufferClaim);
-    if (result > 0)
-    {
-      auto buffer = bufferClaim.buffer();
-      CloseSession request;
-      wrapAndApplyHeader(request, buffer)
-	.clusterSessionId(clusterSessionId);
-      
-      bufferClaim.commit();
-      
+    std::int64_t result = publication->offer(buffer);
+    if (result > 0) {
       return true;
     }
 
@@ -61,7 +47,51 @@ bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
   }
   while (--attempts > 0);
   return false;
+}
 
+template <typename Codec, typename Func>
+bool claim(std::shared_ptr<ExclusivePublication> publication, Func func)
+{
+
+  auto length = Codec::sbeBlockAndHeaderLength();
+
+  int attempts = 3;
+  do
+  {
+    BufferClaim bufferClaim;
+    std::int64_t result = publication->tryClaim(length, bufferClaim);
+    if (result > 0)
+    {
+      std::cout << "length: " << length << std::endl;
+      std::cout << "result: " << result << std::endl; 
+      std::cout << "bufoff: " << bufferClaim.offset() << std::endl; 
+      std::cout << "buflen: " << bufferClaim.length() << std::endl;
+      Codec request{};
+      request.wrapAndApplyHeader(
+	bufferClaim.buffer().sbeData() + bufferClaim.offset(),
+	0,
+	bufferClaim.length());
+      func(request);
+      bufferClaim.commit();
+      return true;
+    }
+
+    checkResult(result);
+  }
+  while (--attempts > 0);
+  return false;
+}
+
+ConsensusModuleProxy::ConsensusModuleProxy(std::shared_ptr<ExclusivePublication> publication) :
+  m_publication(std::move(publication))
+{
+}
+
+bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
+{
+  return claim<CloseSession>(m_publication, [&](auto &request) {
+    request.clusterSessionId(clusterSessionId);
+  });
 }
 
 /**
@@ -73,85 +103,27 @@ bool ConsensusModuleProxy::closeSession(std::int64_t clusterSessionId)
  */
 bool ConsensusModuleProxy::removeMember(std::int32_t memberId, bool isPassive)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + RemoveMember::sbeBlockLength();
-
-  int attempts = 3;
-  do
-  {
-    BufferClaim bufferClaim;
-    std::int64_t result = m_publication->tryClaim(length, bufferClaim);
-    if (result > 0)
-    {
-      auto buffer = bufferClaim.buffer();
-      RemoveMember request;
-      wrapAndApplyHeader(request, buffer)
-	.memberId(memberId)
-	.isPassive(isPassive ? BooleanType::Value::TRUE : BooleanType::Value::FALSE);
-      
-      bufferClaim.commit();
-      
-      return true;
-    }
-
-    checkResult(result);
-  }
-  while (--attempts > 0);
-  return false;
+  return claim<RemoveMember>(m_publication, [&](auto &request) {
+    request
+      .memberId(memberId)
+      .isPassive(isPassive ? BooleanType::Value::TRUE : BooleanType::Value::FALSE);
+  });
 }
 
 bool ConsensusModuleProxy::scheduleTimer(std::int64_t correlationId, std::int64_t deadline)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + ScheduleTimer::sbeBlockLength();
-
-  int attempts = 3;
-  do
-  {
-    BufferClaim bufferClaim;
-    std::int64_t result = m_publication->tryClaim(length, bufferClaim);
-    if (result > 0)
-    {
-      auto buffer = bufferClaim.buffer();
-      ScheduleTimer request;
-      wrapAndApplyHeader(request, buffer)
-	.correlationId(correlationId)
-	.deadline(deadline);
-      
-      bufferClaim.commit();
-      
-      return true;
-    }
-
-    checkResult(result);
-  }
-  while (--attempts > 0);
-  return false;
+  return claim<ScheduleTimer>(m_publication, [&](auto &request) {
+    request
+      .correlationId(correlationId)
+      .deadline(deadline);
+  });
 }
 
 bool ConsensusModuleProxy::cancelTimer(std::int64_t correlationId)
 {
-  std::uint64_t length = MessageHeader::encodedLength() + CancelTimer::sbeBlockLength();
-
-  int attempts = 3;
-  do
-  {
-    BufferClaim bufferClaim;
-    std::int64_t result = m_publication->tryClaim(length, bufferClaim);
-    if (result > 0)
-    {
-      auto buffer = bufferClaim.buffer();
-      CancelTimer request;
-      wrapAndApplyHeader(request, buffer)
-	.correlationId(correlationId);
-      
-      bufferClaim.commit();
-      
-      return true;
-    }
-
-    checkResult(result);
-  }
-  while (--attempts > 0);
-  return false;
+  return claim<CancelTimer>(m_publication, [&](auto &request) {
+      request.correlationId(correlationId);
+  });
 }
 
 bool ConsensusModuleProxy::ack(
@@ -161,8 +133,38 @@ bool ConsensusModuleProxy::ack(
   std::int64_t relevantId,
   std::int32_t serviceId)
 {
+  /*
   std::uint64_t length = MessageHeader::encodedLength() + ServiceAck::sbeBlockLength();
 
+  unsigned char data[length];
+  AtomicBuffer buffer{&data[0], length};
+  ServiceAck request;
+  wrapAndApplyHeader(request, buffer)
+    .logPosition(logPosition)
+    .timestamp(timestamp)
+    .ackId(ackId)
+    .relevantId(relevantId)
+    .serviceId(serviceId);
+
+  auto result = m_publication->offer(buffer);
+  if (result > 0)
+  {
+    return true;
+  }
+  checkResult(result);
+  return false;
+  */
+  
+  return offer<ServiceAck>(m_publication, [&](auto &request) {
+      request
+      	.logPosition(logPosition)
+	.timestamp(timestamp)
+	.ackId(ackId)
+	.relevantId(relevantId)
+	.serviceId(serviceId);
+  });
+
+  /*
   int attempts = 3;
   do
   {
@@ -170,9 +172,8 @@ bool ConsensusModuleProxy::ack(
     std::int64_t result = m_publication->tryClaim(length, bufferClaim);
     if (result > 0)
     {
-      auto buffer = bufferClaim.buffer();
       ServiceAck request;
-      wrapAndApplyHeader(request, buffer)
+      wrapAndApplyHeader(request, bufferClaim.buffer())
 	.logPosition(logPosition)
 	.timestamp(timestamp)
 	.ackId(ackId)
@@ -181,7 +182,11 @@ bool ConsensusModuleProxy::ack(
       
       bufferClaim.commit();
 
-      std::cout << "Sent ACK " << ackId << std::endl;
+      std::cout << result
+		<< ":Sent ACK " << ackId
+		<< " of length " << length
+		<< " to " << m_publication->channel() << ":" << m_publication->streamId()
+		<< std::endl;
       return true;
     }
 
@@ -189,7 +194,7 @@ bool ConsensusModuleProxy::ack(
   }
   while (--attempts > 0);
   return false;
-  
+  */
 }
 
 }}}
