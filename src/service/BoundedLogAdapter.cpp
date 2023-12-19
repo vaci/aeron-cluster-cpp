@@ -23,9 +23,6 @@ using namespace codecs;
 
 namespace {
 
-constexpr static std::uint64_t SESSION_HEADER_LENGTH =
-  MessageHeader::encodedLength() + SessionMessageHeader::sbeBlockLength();
-
 static aeron::controlled_poll_fragment_handler_t controlHandler(BoundedLogAdapter &adapter)
 {
   return
@@ -69,7 +66,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
   {
     SessionMessageHeader sessionHeader;
     sessionHeader.wrapForDecode(
-      reinterpret_cast<char*>(buffer.buffer()),
+      buffer.sbeData(),
       offset + MessageHeader::encodedLength(),
       messageHeader.blockLength(),
       messageHeader.version(),
@@ -80,8 +77,8 @@ ControlledPollAction BoundedLogAdapter::onMessage(
       sessionHeader.clusterSessionId(),
       sessionHeader.timestamp(),
       buffer,
-      offset + SESSION_HEADER_LENGTH,
-      length - SESSION_HEADER_LENGTH,
+      offset + SessionMessageHeader::sbeBlockAndHeaderLength(),
+      length - SessionMessageHeader::sbeBlockAndHeaderLength(),
       header);
 
     return ControlledPollAction::CONTINUE;
@@ -93,7 +90,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     {
       TimerEvent timerEvent;
       timerEvent.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
@@ -110,7 +107,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     {
       SessionOpenEvent openEvent;
       openEvent.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
@@ -139,7 +136,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
       SessionCloseEvent closeEvent;
 
       closeEvent.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
@@ -157,7 +154,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     {
       ClusterActionRequest actionRequest;
       actionRequest.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
@@ -181,7 +178,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     {
       NewLeadershipTermEvent newLeadershipTermEvent;
       newLeadershipTermEvent.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
@@ -203,7 +200,7 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     {
       MembershipChangeEvent membershipChangeEvent;
       membershipChangeEvent.wrapForDecode(
-	reinterpret_cast<char*>(buffer.buffer()),
+	buffer.sbeData(),
 	offset + MessageHeader::encodedLength(),
 	messageHeader.blockLength(),
 	messageHeader.version(),
@@ -249,7 +246,7 @@ ControlledPollAction BoundedLogAdapter::onFragment(AtomicBuffer &buffer, util::i
     {
       // TODO fix length
       AtomicBuffer buffer(m_builder.buffer(), m_builder.limit());
-      action = onMessage(buffer, offset, length, header);
+      action = onMessage(buffer, 0, m_builder.limit(), header);
       
       if (ControlledPollAction::ABORT == action)
       {
@@ -274,6 +271,5 @@ ControlledPollAction BoundedLogAdapter::onFragment(AtomicBuffer &buffer, util::i
   
   return action;
 }
-
 
 }}}
