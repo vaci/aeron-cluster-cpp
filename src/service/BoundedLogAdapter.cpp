@@ -53,24 +53,25 @@ void BoundedLogAdapter::close()
 ControlledPollAction BoundedLogAdapter::onMessage(
   AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
 {
-  MessageHeader messageHeader(reinterpret_cast<char*>(buffer.buffer()), buffer.capacity());
+  MessageHeader msgHeader(
+    buffer.sbeData() + offset,
+    static_cast<std::uint64_t>(length),
+    MessageHeader::sbeSchemaVersion());
 
-  std::int32_t schemaId = messageHeader.schemaId();
+  std::int32_t schemaId = msgHeader.schemaId();
   if (schemaId != MessageHeader::sbeSchemaId())
   {
     throw ClusterException(std::string("expected schemaId=") + std::to_string(MessageHeader::sbeSchemaId()) + ", actual=" + std::to_string(schemaId), SOURCEINFO);
   }
 
-  std::int32_t templateId = messageHeader.templateId();
+  std::int32_t templateId = msgHeader.templateId();
   if (templateId == SessionMessageHeader::sbeTemplateId())
   {
-    SessionMessageHeader sessionHeader;
-    sessionHeader.wrapForDecode(
-      buffer.sbeData(),
-      offset + MessageHeader::encodedLength(),
-      messageHeader.blockLength(),
-      messageHeader.version(),
-      length - MessageHeader::encodedLength());
+    SessionMessageHeader sessionHeader(
+      buffer.sbeData() + offset + MessageHeader::encodedLength(),
+      static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+      msgHeader.blockLength(),
+      msgHeader.version());
 
     m_agent.onSessionMessage(
       header.position(),
@@ -88,13 +89,11 @@ ControlledPollAction BoundedLogAdapter::onMessage(
   {
   case TimerEvent::sbeTemplateId():
     {
-      TimerEvent timerEvent;
-      timerEvent.wrapForDecode(
-	buffer.sbeData(),
-	offset + MessageHeader::encodedLength(),
-	messageHeader.blockLength(),
-	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+      TimerEvent timerEvent(
+	buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	msgHeader.blockLength(),
+	msgHeader.version());
 	    
       m_agent.onTimerEvent(
 	header.position(),
@@ -105,21 +104,19 @@ ControlledPollAction BoundedLogAdapter::onMessage(
 
   case SessionOpenEvent::sbeTemplateId():
     {
-      SessionOpenEvent openEvent;
-      openEvent.wrapForDecode(
-	buffer.sbeData(),
-	offset + MessageHeader::encodedLength(),
-	messageHeader.blockLength(),
-	messageHeader.version(),
-	length - MessageHeader::encodedLength());
-	    
+      SessionOpenEvent openEvent(
+	buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	msgHeader.blockLength(),
+	msgHeader.version());
+
       auto responseChannel = openEvent.responseChannel();
       std::vector<char> encodedPrincipal;
       encodedPrincipal.resize(openEvent.encodedPrincipalLength());
       // TODO
       //final byte[] encodedPrincipal = new byte[openEventDecoder.encodedPrincipalLength()];
       //openEvent.getEncodedPrincipal(encodedPrincipal, 0, encodedPrincipal.length);
-
+      
       m_agent.onSessionOpen(
 	openEvent.leadershipTermId(),
 	header.position(),
@@ -133,14 +130,11 @@ ControlledPollAction BoundedLogAdapter::onMessage(
 	  
   case SessionCloseEvent::sbeTemplateId():
     {
-      SessionCloseEvent closeEvent;
-
-      closeEvent.wrapForDecode(
-	buffer.sbeData(),
-	offset + MessageHeader::encodedLength(),
-	messageHeader.blockLength(),
-	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+      SessionCloseEvent closeEvent(
+	buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	msgHeader.blockLength(),
+	msgHeader.version());
 
       m_agent.onSessionClose(
 	closeEvent.leadershipTermId(),
@@ -152,13 +146,11 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     }
   case ClusterActionRequest::sbeTemplateId():
     {
-      ClusterActionRequest actionRequest;
-      actionRequest.wrapForDecode(
-	buffer.sbeData(),
-	offset + MessageHeader::encodedLength(),
-	messageHeader.blockLength(),
-	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+      ClusterActionRequest actionRequest(
+	buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	msgHeader.blockLength(),
+	msgHeader.version());
 
       // TODO
       //auto flags = ClusterActionRequest::flagsNullValue() != actionRequest.flags() ?
@@ -176,13 +168,11 @@ ControlledPollAction BoundedLogAdapter::onMessage(
 		
   case NewLeadershipTermEvent::sbeTemplateId():
     {
-      NewLeadershipTermEvent newLeadershipTermEvent;
-      newLeadershipTermEvent.wrapForDecode(
-	buffer.sbeData(),
-	offset + MessageHeader::encodedLength(),
-	messageHeader.blockLength(),
-	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+      NewLeadershipTermEvent newLeadershipTermEvent(
+	buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	msgHeader.blockLength(),
+	msgHeader.version());
 	    
       m_agent.onNewLeadershipTermEvent(
 	newLeadershipTermEvent.leadershipTermId(),
@@ -198,13 +188,11 @@ ControlledPollAction BoundedLogAdapter::onMessage(
 
   case MembershipChangeEvent::sbeTemplateId():
     {
-      MembershipChangeEvent membershipChangeEvent;
-      membershipChangeEvent.wrapForDecode(
-	buffer.sbeData(),
-	offset + MessageHeader::encodedLength(),
-	messageHeader.blockLength(),
-	messageHeader.version(),
-	length - MessageHeader::encodedLength());
+      MembershipChangeEvent membershipChangeEvent(
+	buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	msgHeader.blockLength(),
+	msgHeader.version());
 
       m_agent.onMembershipChange(
 	membershipChangeEvent.logPosition(),

@@ -6,7 +6,7 @@ export CAPNP_INCLUDE_PATH = $(abspath $(dir $(shell which capnp))/../include)
 #export CCACHE = $(shell which ccache)
 export CXX = $(shell which g++)
 export CXXFLAGS+=-DCAPNP_INCLUDE_PATH=$(CAPNP_INCLUDE_PATH)
-export CXXFLAGS+=-ggdb --std=c++20
+export CXXFLAGS+=-ggdb3 --std=c++20
 
 export LIBS = \
   -lcapnpc -lcapnp-rpc -lcapnp \

@@ -41,14 +41,14 @@ struct TestService
 
   bool onTakeSnapshot(std::shared_ptr<aeron::ExclusivePublication> snapshotPublication)
   {
-    std::cout << "onTakeSnapshot" << std::endl;
+    std::cout << "onTakeSnapshot requested" << std::endl;
     return true;
   }
 
   
   void onRoleChange(Cluster::Role newRole) override
   {
-    std::cout << "onRoleChange" << std::endl;
+    std::cout << "onRoleChange: " << (int32_t)newRole << std::endl;
   }
 
   void onTerminate(Cluster &cluster) override

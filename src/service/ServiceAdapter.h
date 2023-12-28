@@ -11,12 +11,10 @@ class ClusteredServiceAgent;
 class ServiceAdapter
 {
 public:
-  static constexpr int FRAGMENT_LIMIT = 1;
-
   explicit ServiceAdapter(
-    std::shared_ptr<Subscription> subscription);
-
-  ~ServiceAdapter();
+    std::shared_ptr<Subscription> subscription,
+    int fragmentLimit = 1
+  );
 
   inline void agent(std::shared_ptr<ClusteredServiceAgent> agent)
   {
@@ -30,7 +28,7 @@ public:
 
   inline int poll()
   {
-    return m_subscription->poll(m_fragmentHandler, FRAGMENT_LIMIT);
+    return m_subscription->poll(m_fragmentHandler, m_fragmentLimit);
   }
 
   void onFragment(AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header);
@@ -40,6 +38,7 @@ private:
   fragment_handler_t m_fragmentHandler;
   std::shared_ptr<Subscription> m_subscription;
   std::shared_ptr<ClusteredServiceAgent> m_agent;
+  int m_fragmentLimit;
 };
 
 }}}

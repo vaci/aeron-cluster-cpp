@@ -2,18 +2,12 @@
 #include "ClusterClock.h"
 #include "client/ClusterException.h"
 #include "client/AeronArchive.h"
-#include "aeron_cluster_codecs/SnapshotMarker.h"
-#include "aeron_cluster_codecs/ClusterTimeUnit.h"
 
 namespace aeron { namespace cluster { namespace service {
 
-using namespace codecs;
-
 using client::ClusterException;
 
-namespace {
-
-static inline void checkResult(std::int64_t result)
+void SnapshotTaker::checkResult(std::int64_t result)
 {
   if (result == NOT_CONNECTED ||
       result == PUBLICATION_CLOSED ||
@@ -23,43 +17,10 @@ static inline void checkResult(std::int64_t result)
   }
 }
 
-}
-
 SnapshotTaker::SnapshotTaker(
   std::shared_ptr<ExclusivePublication> publication) :
   m_publication(publication)
 {
-}
-
-bool SnapshotTaker::markSnapshot(
-  std::int64_t snapshotTypeId,
-  std::int64_t logPosition,
-  std::int64_t leadershipTermId,
-  std::int32_t  snapshotIndex,
-  SnapshotMark::Value snapshotMark,
-  std::int32_t  appVersion)
-{
-  BufferClaim bufferClaim;
-  std::int64_t result = m_publication->tryClaim(SnapshotMarker::sbeBlockAndHeaderLength(), bufferClaim);
-  if (result > 0)
-  {
-    auto buffer = bufferClaim.buffer();
-    SnapshotMarker marker;
-    marker
-      .wrapAndApplyHeader(reinterpret_cast<char*>(buffer.buffer()), 0, bufferClaim.length())
-      .typeId(snapshotTypeId)
-      .logPosition(logPosition)
-      .leadershipTermId(leadershipTermId)
-      .index(snapshotIndex)
-      .mark(snapshotMark)
-      .timeUnit(ClusterTimeUnit::Value::NANOS)
-      .appVersion(appVersion);
-	
-    bufferClaim.commit();
-    return true;
-  }
-  checkResult(result);
-  return false;
 }
 
 }}}
