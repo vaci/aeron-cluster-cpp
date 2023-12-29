@@ -1,7 +1,7 @@
 #ifndef AERON_CLUSTER_SERVICE_SERVICE_SNAPSHOT_LOADER_H
 #define AERON_CLUSTER_SERVICE_SERVICE_SNAPSHOT_LOADER_H
 
-#include "FragmentAssembler.h"
+#include "ImageControlledFragmentAssembler.h"
 
 namespace aeron { namespace cluster { namespace service {
 
@@ -25,12 +25,18 @@ public:
     {
 	return m_appVersion;
     }
+    
+    inline int poll()
+    {
+	return m_image->controlledPoll(m_fragmentHandler, FRAGMENT_LIMIT);
+    }
 
-    std::int32_t poll();
-
-    ControlledPollAction onFragment(AtomicBuffer buffer, util::index_t offset, util::index_t length, Header &header);
+    ControlledPollAction onFragment(
+	AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header);
 
 private:
+    ImageControlledFragmentAssembler m_fragmentAssembler;
+    controlled_poll_fragment_handler_t m_fragmentHandler;
     std::shared_ptr<Image> m_image;
     ClusteredServiceAgent &m_agent;
     bool m_inSnapshot = false;

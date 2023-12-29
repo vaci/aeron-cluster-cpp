@@ -28,7 +28,7 @@ public:
 
   inline int poll()
   {
-    return m_subscription->poll(m_fragmentHandler, m_fragmentLimit);
+      return m_subscription->poll(m_fragmentHandler, m_fragmentLimit);
   }
 
   void onFragment(AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header);

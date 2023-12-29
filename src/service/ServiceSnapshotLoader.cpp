@@ -12,33 +12,27 @@ using namespace codecs;
 
 using client::ClusterException;
 
-namespace {
-
-static controlled_poll_fragment_handler_t fragmentHandler(ServiceSnapshotLoader &loader)
+static controlled_poll_fragment_handler_t fragmentHandler(ServiceSnapshotLoader &poller)
 {
     return
 	[&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
 	{
-	    return loader.onFragment(buffer, offset, length, header);
+	    return poller.onFragment(buffer, offset, length, header);
 	};
-}
-
 }
 
 ServiceSnapshotLoader::ServiceSnapshotLoader(
     std::shared_ptr<Image> image,
     ClusteredServiceAgent &agent) :
+    m_fragmentAssembler(fragmentHandler(*this)),
+    m_fragmentHandler(m_fragmentAssembler.handler()),
     m_image(std::move(image)),
     m_agent(agent)
 {
 }
 
-std::int32_t ServiceSnapshotLoader::poll()
-{
-    return m_image->controlledPoll(fragmentHandler(*this), FRAGMENT_LIMIT);
-}
-
-ControlledPollAction ServiceSnapshotLoader::onFragment(AtomicBuffer buffer, util::index_t offset, util::index_t length, Header &header)
+ControlledPollAction ServiceSnapshotLoader::onFragment(
+    AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
 {
     using codecs::ClientSession;
 
@@ -47,86 +41,83 @@ ControlledPollAction ServiceSnapshotLoader::onFragment(AtomicBuffer buffer, util
 	static_cast<std::uint64_t>(length),
 	MessageHeader::sbeSchemaVersion());
       
-    auto schemaId = msgHeader.schemaId();
+    const std::uint16_t schemaId = msgHeader.schemaId();
     if (schemaId != MessageHeader::sbeSchemaId())
     {
-	throw ClusterException(std::string("expected schemaId=") + std::to_string(MessageHeader::sbeSchemaId()) + ", actual=" + std::to_string(schemaId), SOURCEINFO);
+	throw ClusterException(
+	    "expected schemaId=" + std::to_string(MessageHeader::sbeSchemaId()) +
+	    ", actual=" + std::to_string(schemaId),
+	    SOURCEINFO);
     }
-	    
-    switch (msgHeader.templateId())
+
+    const std::uint16_t templateId = msgHeader.templateId();
+    if (SnapshotMarker::sbeTemplateId() == templateId)
     {
-	case SnapshotMarker::sbeTemplateId():
-	{
-	    SnapshotMarker snapshotMarker(
-		buffer.sbeData() + offset + MessageHeader::encodedLength(),
-		length - MessageHeader::encodedLength(),
-		msgHeader.blockLength(),
-		msgHeader.version());
+	SnapshotMarker snapshotMarker(
+	    buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	    static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	    msgHeader.blockLength(),
+	    msgHeader.version());
 
-	    auto typeId = snapshotMarker.typeId();
-	    if (typeId != Configuration::SNAPSHOT_TYPE_ID)
-	    {
-		throw ClusterException(
-		    std::string("unexpected snapshot type: ") + std::to_string(typeId),
-		    SOURCEINFO);
-	    }
-    
-	    switch (snapshotMarker.mark())
-	    {
-		case SnapshotMark::Value::BEGIN:
-		{
-		    if (m_inSnapshot)
-		    {
-			throw ClusterException("already in snapshot", SOURCEINFO);
-		    }
-		    m_inSnapshot = true;
-		    m_appVersion = snapshotMarker.appVersion();
-		    // TODO
-		    //m_timeUnit = ClusterClock.map(snapshotMarkerDecoder.timeUnit());
-		    return ControlledPollAction::CONTINUE;
-		}
-		case SnapshotMark::Value::END:
-		{
-		    if (!m_inSnapshot)
-		    {
-			throw ClusterException("missing begin snapshot", SOURCEINFO);
-		    }
-		    m_isDone = true;
-		    return ControlledPollAction::BREAK;
-		}
-		case SnapshotMark::Value::SECTION:
-		case SnapshotMark::Value::NULL_VALUE:
-		    break;
-	    }
-	    break;
+	auto typeId = snapshotMarker.typeId();
+	if (typeId != Configuration::SNAPSHOT_TYPE_ID)
+	{
+	    throw ClusterException(
+		"unexpected snapshot type: " + std::to_string(typeId),
+		SOURCEINFO);
 	}
-
-	case ClientSession::sbeTemplateId():
+    
+	switch (snapshotMarker.mark())
 	{
-	    ClientSession clientSession(
-		buffer.sbeData() + offset + MessageHeader::encodedLength(),
-		length - MessageHeader::encodedLength(),
-		msgHeader.blockLength(),
-		msgHeader.version());
-	    
-	    std::string responseChannel(
-		clientSession.responseChannel(),
-		clientSession.responseChannelLength());
-
-	    std::vector<char> encodedPrincipal(
-		clientSession.encodedPrincipal(),
-		clientSession.encodedPrincipal() + clientSession.encodedPrincipalLength());
- 
-	    m_agent.addSession(
-		clientSession.clusterSessionId(),
-		clientSession.responseStreamId(),
-		responseChannel,
-		encodedPrincipal);
-
-	    break;
+	    case SnapshotMark::Value::BEGIN:
+	    {
+		if (m_inSnapshot)
+		{
+		    throw ClusterException("already in snapshot", SOURCEINFO);
+		}
+		m_inSnapshot = true;
+		m_appVersion = snapshotMarker.appVersion();
+		// TODO
+		//m_timeUnit = ClusterClock.map(snapshotMarkerDecoder.timeUnit());
+		return ControlledPollAction::CONTINUE;
+	    }
+	    case SnapshotMark::Value::END:
+	    {
+		if (!m_inSnapshot)
+		{
+		    throw ClusterException("missing begin snapshot", SOURCEINFO);
+		}
+		m_isDone = true;
+		return ControlledPollAction::BREAK;
+	    }
+	    case SnapshotMark::Value::SECTION:
+	    case SnapshotMark::Value::NULL_VALUE:
+		break;
 	}
     }
-  
+    else if (ClientSession::sbeTemplateId() == templateId)
+    {
+	ClientSession clientSession(
+	    buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	    static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	    msgHeader.blockLength(),
+	    msgHeader.version());
+	    
+	std::string responseChannel(
+	    clientSession.responseChannel(),
+	    clientSession.responseChannelLength());
+
+	std::vector<char> encodedPrincipal(
+	    clientSession.encodedPrincipal(),
+	    clientSession.encodedPrincipal() + clientSession.encodedPrincipalLength());
+ 
+	m_agent.addSession(
+	    clientSession.clusterSessionId(),
+	    clientSession.responseStreamId(),
+	    responseChannel,
+	    encodedPrincipal);
+    }
+
     return ControlledPollAction::CONTINUE;
 }
 
