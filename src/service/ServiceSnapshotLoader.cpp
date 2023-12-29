@@ -16,28 +16,27 @@ namespace {
 
 static controlled_poll_fragment_handler_t fragmentHandler(ServiceSnapshotLoader &loader)
 {
-  return
-    [&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
-    {
-      return loader.onFragment(buffer, offset, length, header);
-    };
+    return
+	[&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
+	{
+	    return loader.onFragment(buffer, offset, length, header);
+	};
 }
 
 }
 
 ServiceSnapshotLoader::ServiceSnapshotLoader(
-  std::shared_ptr<Image> image,
-  ClusteredServiceAgent &agent) :
-  m_image(image),
-  m_agent(agent)
+    std::shared_ptr<Image> image,
+    ClusteredServiceAgent &agent) :
+    m_image(std::move(image)),
+    m_agent(agent)
 {
 }
 
 std::int32_t ServiceSnapshotLoader::poll()
 {
-  return m_image->controlledPoll(fragmentHandler(*this), FRAGMENT_LIMIT);
+    return m_image->controlledPoll(fragmentHandler(*this), FRAGMENT_LIMIT);
 }
-
 
 ControlledPollAction ServiceSnapshotLoader::onFragment(AtomicBuffer buffer, util::index_t offset, util::index_t length, Header &header)
 {
@@ -110,7 +109,10 @@ ControlledPollAction ServiceSnapshotLoader::onFragment(AtomicBuffer buffer, util
 		msgHeader.blockLength(),
 		msgHeader.version());
 	    
-	    std::string responseChannel(clientSession.responseChannel(), clientSession.responseChannelLength());
+	    std::string responseChannel(
+		clientSession.responseChannel(),
+		clientSession.responseChannelLength());
+
 	    std::vector<char> encodedPrincipal(
 		clientSession.encodedPrincipal(),
 		clientSession.encodedPrincipal() + clientSession.encodedPrincipalLength());
