@@ -313,21 +313,34 @@ ClusteredServiceAgent::ClusteredServiceAgent(
 
 void ClusteredServiceAgent::doWork()
 {
+    int workCount = 0;
+    long nowNs = m_nanoClock();
+    
     if (m_currentSnapshot)
     {
 	if (!m_currentSnapshot->doWork())
 	{
 	    return;
 	}
+	std::cout << "Current snapshot completed" << std::endl;
 	m_currentSnapshot = nullptr;
     }
 
-    pollServiceAdapter();
+    
+    if (checkForClockTick(nowNs))
+    {
+	workCount += pollServiceAdapter();
+    }
 
     if (m_logAdapter->image() != nullptr)
     {
 	auto position = m_commitPosition->get();
-	m_logAdapter->poll(position);
+	int polled = m_logAdapter->poll(position);
+	workCount += polled;
+	if (0 == polled && m_logAdapter->isDone())
+	{
+	    closeLog();
+	}
     }
 }
 
@@ -356,6 +369,8 @@ void ClusteredServiceAgent::onNewLeadershipTermEvent(
     std::int32_t logSessionId,
     std::int32_t appVersion)
 {
+    
+    std::cout << "onNewLeadershipTermEvent: " << leadershipTermId << std::endl;
     /*
       TODO
     if (!m_ctx->appVersionValidator().isVersionCompatible(ctx.appVersion(), appVersion))
@@ -380,6 +395,16 @@ void ClusteredServiceAgent::onNewLeadershipTermEvent(
 	logSessionId,
 	// TODO timeUnit
 	appVersion);
+}
+
+void ClusteredServiceAgent::closeLog()
+{
+    std::cout << "CLosing log" << std::endl;
+    m_logPosition = std::max(m_logAdapter->image()->position(), m_logPosition);
+    m_logAdapter->close();
+    // TODO
+    //disconnectEgress(ctx.countedErrorHandler());
+    role(Role::FOLLOWER);
 }
 
 bool ClusteredServiceAgent::closeClientSession(std::int64_t clusterSessionId)
@@ -496,20 +521,17 @@ void ClusteredServiceAgent::snapshotState(
     ServiceSnapshotTaker snapshotTaker(publication);
 
     std::cout << "Marking begin..." << std::endl;
-    // TODO handle failure...
     snapshotTaker.markBegin(
 	Configuration::SNAPSHOT_TYPE_ID, logPosition, leadershipTermId, 0, m_ctx->appVersion());
 
     for (auto &&session: m_sessions)
     {
-	// TODO handle failure...
 	snapshotTaker.snapshotSession(*session);
     }
 
-    std::cout << "Marking end..." << std::endl;
-    // TODO handle failure...
     snapshotTaker.markEnd(
 	Configuration::SNAPSHOT_TYPE_ID, logPosition, leadershipTermId, 0, m_ctx->appVersion());
+    std::cout << "Marked end" << std::endl;
 }
 
 bool ClusteredServiceAgent::checkForClockTick(std::int64_t nowNs)
@@ -569,6 +591,8 @@ ClusteredServiceAgent::SnapshotState::SnapshotState(
 {
     m_publicationId = m_aeron->addExclusivePublication(
 	m_snapshotChannel, m_snapshotStreamId);
+
+    std::cout << "New snapshot state: " << m_publicationId << std::endl;
 }
 
 bool ClusteredServiceAgent::SnapshotState::doWork()
@@ -625,12 +649,13 @@ bool ClusteredServiceAgent::SnapshotState::doWork()
 	return false;
     }
 
-    std::cout << "Acking recording" << std::endl;
+    std::cout << "Acking recording: " << m_recordingId << std::endl;
     if (m_agent.ack(m_recordingId))
     {
 	return true;
     }
 
+    std::cout << "Failed to  ack recording: " << m_recordingId << std::endl;
     return false;
 }
 
@@ -639,16 +664,16 @@ int ClusteredServiceAgent::pollServiceAdapter()
     int workCount = 0;
 
     workCount += m_serviceAdapter->poll();
-
+    
     if (nullptr != m_activeLogEvent && nullptr == m_logAdapter->image())
-  {
-      //std::cout << "Joining active log event" << std::endl;
-      if (joinActiveLog(*m_activeLogEvent))
-      {
-	  m_activeLogEvent = nullptr;
-	  return workCount;
-      }
-  }
+    {
+	//std::cout << "Joining active log event" << std::endl;
+	if (joinActiveLog(*m_activeLogEvent))
+	{
+	    m_activeLogEvent = nullptr;
+	    return workCount;
+	}
+    }
 
     if (NULL_POSITION != m_terminationPosition && m_logPosition >= m_terminationPosition)
     {
@@ -823,6 +848,7 @@ void ClusteredServiceAgent::onJoinLog(
     std::cout << "ClusteredServiceAgent::onJoinLog" << std::endl;
     
     m_logAdapter->maxLogPosition(maxLogPosition);
+    m_logAdapter->image(nullptr);
     m_activeLogEvent = std::make_unique<ActiveLogEvent>(
 	logPosition,
 	maxLogPosition,
@@ -837,6 +863,19 @@ void ClusteredServiceAgent::onJoinLog(
 void ClusteredServiceAgent::terminate(bool expected)
 {
   // TODO
+}
+
+
+void ClusteredServiceAgent::executeAction(
+  ClusterAction::Value action,
+  std::int64_t logPosition,
+  std::int64_t leadershipTermId,
+  std::int32_t flags)
+{
+    if (ClusterAction::Value::SNAPSHOT == action && shouldSnapshot(flags))
+    {
+	onTakeSnapshot(logPosition, leadershipTermId);
+    }
 }
 
 bool ClusteredServiceAgent::joinActiveLog(ActiveLogEvent &activeLog)
@@ -899,6 +938,7 @@ bool ClusteredServiceAgent::joinActiveLog(ActiveLogEvent &activeLog)
       SOURCEINFO);
   }
 
+  std::cout << "Joined active log" << std::endl;
   m_logAdapter->image(activeLog.m_image);
   m_logAdapter->maxLogPosition(activeLog.m_maxLogPosition);
   activeLog.m_subscription = nullptr;

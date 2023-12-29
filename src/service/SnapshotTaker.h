@@ -92,7 +92,6 @@ inline void SnapshotTaker::markSnapshot(
     using namespace codecs;
     constexpr auto length = SnapshotMarker::sbeBlockAndHeaderLength();
 
-    std::cout << "Snap mark length: " << length << std::endl;
     char data[length];
     SnapshotMarker marker;
     marker

@@ -278,19 +278,8 @@ private:
     void onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId);
     int pollServiceAdapter();
     bool ack(std::int64_t relevantId);
+    void closeLog();
 };
-
-inline void ClusteredServiceAgent::executeAction(
-  ClusterAction::Value action,
-  std::int64_t logPosition,
-  std::int64_t leadershipTermId,
-  std::int32_t flags)
-{
-    if (ClusterAction::Value::SNAPSHOT == action && shouldSnapshot(flags))
-    {
-	onTakeSnapshot(logPosition, leadershipTermId);
-    }
-}
 
 inline ClientSession* ClusteredServiceAgent::getClientSession(std::int64_t clusterSessionId)
 {

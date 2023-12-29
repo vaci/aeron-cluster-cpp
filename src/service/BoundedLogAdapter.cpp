@@ -47,6 +47,7 @@ void BoundedLogAdapter::close()
   if (m_image != nullptr)
   {
     m_image->close();
+    m_image = nullptr;
   }
 }
 
@@ -58,13 +59,16 @@ ControlledPollAction BoundedLogAdapter::onMessage(
     static_cast<std::uint64_t>(length),
     MessageHeader::sbeSchemaVersion());
 
-  std::int32_t schemaId = msgHeader.schemaId();
+  const std::int32_t schemaId = msgHeader.schemaId();
   if (schemaId != MessageHeader::sbeSchemaId())
   {
-    throw ClusterException(std::string("expected schemaId=") + std::to_string(MessageHeader::sbeSchemaId()) + ", actual=" + std::to_string(schemaId), SOURCEINFO);
+    throw ClusterException(
+	"expected schemaId=" + std::to_string(MessageHeader::sbeSchemaId()) +
+	", actual=" + std::to_string(schemaId),
+	SOURCEINFO);
   }
 
-  std::int32_t templateId = msgHeader.templateId();
+  const std::int32_t templateId = msgHeader.templateId();
   if (templateId == SessionMessageHeader::sbeTemplateId())
   {
     SessionMessageHeader sessionHeader(
