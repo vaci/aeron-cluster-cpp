@@ -70,7 +70,7 @@ constexpr const char *REPLAY_CHANNEL_PROP_NAME = "aeron.cluster.replay.channel";
 /**
  * Default channel to be used for log or snapshot replay on startup.
  */
-constexpr const char *REPLAY_CHANNEL_DEFAULT = "ipc";
+constexpr const char *REPLAY_CHANNEL_DEFAULT = "aeron:ipc";
 
 /**
  * Stream id within a channel for the clustered log or snapshot replay.

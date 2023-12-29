@@ -6,6 +6,7 @@ using namespace ::aeron::cluster::service;
 using ::aeron::concurrent::SleepingIdleStrategy;
 using ::aeron::concurrent::BackoffIdleStrategy;
 using ::aeron::concurrent::YieldingIdleStrategy;
+using ::aeron::concurrent::AtomicBuffer;
 
 struct TestService
   : ClusteredService
@@ -42,7 +43,10 @@ struct TestService
   bool onTakeSnapshot(std::shared_ptr<aeron::ExclusivePublication> snapshotPublication)
   {
     std::cout << "onTakeSnapshot requested" << std::endl;
-    return true;
+    char data[6];
+    strcpy(data, "hello");
+    AtomicBuffer buffer(reinterpret_cast<unsigned char*>(data), 6);
+    return snapshotPublication->offer(buffer);
   }
 
   

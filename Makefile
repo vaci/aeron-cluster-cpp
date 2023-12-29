@@ -6,7 +6,7 @@ export CAPNP_INCLUDE_PATH = $(abspath $(dir $(shell which capnp))/../include)
 #export CCACHE = $(shell which ccache)
 export CXX = $(shell which g++)
 export CXXFLAGS+=-DCAPNP_INCLUDE_PATH=$(CAPNP_INCLUDE_PATH)
-export CXXFLAGS+=-ggdb3 --std=c++20
+export CXXFLAGS+=--std=c++20
 
 export LIBS = \
   -lcapnpc -lcapnp-rpc -lcapnp \
@@ -27,7 +27,8 @@ EKAM_FLAGS := -j $(NIX_BUILD_CORES) -l 200
 
 .DEFAULT: release
 
-debug continuous: export CXXFLAGS+=-O0
+debug debug-continuous: export CXXFLAGS+=-O0 -ggdb3
+
 release release-continuous: export CXXFLAGS+=-O2 -DNDEBUG
 
 debug-continuous release-continuous: export EKAM_FLAGS+=-c

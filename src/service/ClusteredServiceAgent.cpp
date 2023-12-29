@@ -191,23 +191,28 @@ std::shared_ptr<ClusteredServiceAgent> ClusteredServiceAgent::AsyncConnect::poll
 
     if (m_step == 2)
     {
-	std::cout << "step 2" << std::endl;
 	if (!m_snapshotSubscription)
 	{
 	    m_snapshotSubscription = m_aeron->findSubscription(m_snapshotSubscriptionId);
-	    return {};
+	    if (!m_snapshotSubscription) {
+		return {};
+	    }
 	}
 
 	if (!m_snapshotImage)
 	{
 	    m_snapshotImage = m_snapshotSubscription->imageBySessionId(m_snapshotSessionId);
-	    return {};
+	    if (!m_snapshotImage) {
+		return {};
+	    }
 	}
 
 	if (!m_snapshotLoader)
 	{
 	    m_snapshotLoader = std::make_unique<ServiceSnapshotLoader>(m_snapshotImage, *m_agent);
-	    return {};
+	    if (!m_snapshotLoader) {
+		return {};
+	    }
 	}
 
 	if (!m_snapshotLoader->isDone())
@@ -454,6 +459,7 @@ void ClusteredServiceAgent::role(Cluster::Role newRole)
 
 void ClusteredServiceAgent::onTakeSnapshot(std::int64_t logPosition, std::int64_t leadershipTermId)
 {
+    std::cout << "onTakeSnapshot" << std::endl;
     m_currentSnapshot = std::make_unique<SnapshotState>(
 	*this, m_ctx->snapshotChannel(), m_ctx->snapshotStreamId());
 }
@@ -489,14 +495,19 @@ void ClusteredServiceAgent::snapshotState(
 {
     ServiceSnapshotTaker snapshotTaker(publication);
 
+    std::cout << "Marking begin..." << std::endl;
+    // TODO handle failure...
     snapshotTaker.markBegin(
 	Configuration::SNAPSHOT_TYPE_ID, logPosition, leadershipTermId, 0, m_ctx->appVersion());
 
     for (auto &&session: m_sessions)
     {
+	// TODO handle failure...
 	snapshotTaker.snapshotSession(*session);
     }
 
+    std::cout << "Marking end..." << std::endl;
+    // TODO handle failure...
     snapshotTaker.markEnd(
 	Configuration::SNAPSHOT_TYPE_ID, logPosition, leadershipTermId, 0, m_ctx->appVersion());
 }
@@ -583,6 +594,7 @@ bool ClusteredServiceAgent::SnapshotState::doWork()
 
     if (m_recordingCounterId == CountersReader::NULL_COUNTER_ID)
     {
+	//std::cout << "Finding recording counter" << std::endl;
 	auto sessionId = m_publication->sessionId();
 	m_recordingCounterId = RecordingPos::findCounterIdBySessionId(counters, sessionId);
 	if (CountersReader::NULL_COUNTER_ID == m_recordingCounterId)
@@ -591,8 +603,11 @@ bool ClusteredServiceAgent::SnapshotState::doWork()
 	    return false;
 	}
 	m_recordingId = RecordingPos::getRecordingId(counters, m_recordingCounterId);
+	if (m_recordingCounterId != CountersReader::NULL_COUNTER_ID)
+	{
+	    m_agent.snapshotState(m_publication, m_agent.m_logPosition, m_agent.m_leadershipTermId);
+	}
     }
-
     if (!m_snapshotComplete)
     {
 	std::cout << "Attempting to complete snapshot" << std::endl;
@@ -605,7 +620,6 @@ bool ClusteredServiceAgent::SnapshotState::doWork()
 	std::cout << "Snapshot taken" << std::endl;
     }
 
-    std::cout << "Awaiting recording count" << std::endl;
     if (counters.getCounterValue(m_recordingCounterId) < m_publication->position())
     {
 	return false;
@@ -807,7 +821,8 @@ void ClusteredServiceAgent::onJoinLog(
     const std::string &logChannel)
 {
     std::cout << "ClusteredServiceAgent::onJoinLog" << std::endl;
-
+    
+    m_logAdapter->maxLogPosition(maxLogPosition);
     m_activeLogEvent = std::make_unique<ActiveLogEvent>(
 	logPosition,
 	maxLogPosition,
