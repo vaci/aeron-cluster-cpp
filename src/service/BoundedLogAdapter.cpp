@@ -25,86 +25,85 @@ namespace {
 
 static aeron::controlled_poll_fragment_handler_t controlHandler(BoundedLogAdapter &adapter)
 {
-  return
-    [&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
-    {
-      return adapter.onFragment(buffer, offset, length, header);
-    };
+    return
+	[&](AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
+	{
+	    return adapter.onFragment(buffer, offset, length, header);
+	};
 }
 
 }
 
 BoundedLogAdapter::BoundedLogAdapter(ClusteredServiceAgent& agent, int fragmentLimit) :
-  m_agent(agent),
-  m_fragmentLimit(fragmentLimit),
-  m_fragmentAssembler(controlHandler(*this)),
-  m_fragmentHandler(m_fragmentAssembler.handler())
+    m_agent(agent),
+    m_fragmentLimit(fragmentLimit),
+    m_fragmentAssembler(controlHandler(*this)),
+    m_fragmentHandler(m_fragmentAssembler.handler())
 {
 }
 
 void BoundedLogAdapter::close()
 {
-  if (m_image != nullptr)
-  {
-    m_image->close();
-    m_image = nullptr;
-  }
+    if (m_image != nullptr)
+    {
+	m_image->close();
+	m_image = nullptr;
+    }
 }
 
 ControlledPollAction BoundedLogAdapter::onMessage(
-  AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
+    AtomicBuffer &buffer, util::index_t offset, util::index_t length, Header &header)
 {
-  MessageHeader msgHeader(
-    buffer.sbeData() + offset,
-    static_cast<std::uint64_t>(length),
-    MessageHeader::sbeSchemaVersion());
+    MessageHeader msgHeader(
+	buffer.sbeData() + offset,
+	static_cast<std::uint64_t>(length),
+	MessageHeader::sbeSchemaVersion());
 
-  const std::int32_t schemaId = msgHeader.schemaId();
-  if (schemaId != MessageHeader::sbeSchemaId())
-  {
-    throw ClusterException(
-	"expected schemaId=" + std::to_string(MessageHeader::sbeSchemaId()) +
-	", actual=" + std::to_string(schemaId),
-	SOURCEINFO);
-  }
-
-  const std::int32_t templateId = msgHeader.templateId();
-  if (templateId == SessionMessageHeader::sbeTemplateId())
-  {
-    SessionMessageHeader sessionHeader(
-      buffer.sbeData() + offset + MessageHeader::encodedLength(),
-      static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
-      msgHeader.blockLength(),
-      msgHeader.version());
-
-    m_agent.onSessionMessage(
-      header.position(),
-      sessionHeader.clusterSessionId(),
-      sessionHeader.timestamp(),
-      buffer,
-      offset + SessionMessageHeader::sbeBlockAndHeaderLength(),
-      length - SessionMessageHeader::sbeBlockAndHeaderLength(),
-      header);
-
-    return ControlledPollAction::CONTINUE;
-  }
-
-  switch (templateId)
-  {
-  case TimerEvent::sbeTemplateId():
+    const std::int32_t schemaId = msgHeader.schemaId();
+    if (schemaId != MessageHeader::sbeSchemaId())
     {
-      TimerEvent timerEvent(
-	buffer.sbeData() + offset + MessageHeader::encodedLength(),
-	static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
-	msgHeader.blockLength(),
-	msgHeader.version());
-	    
-      m_agent.onTimerEvent(
-	header.position(),
-	timerEvent.correlationId(),
-	timerEvent.timestamp());
-      break;
+	throw ClusterException(
+	    "expected schemaId=" + std::to_string(MessageHeader::sbeSchemaId()) +
+	    ", actual=" + std::to_string(schemaId),
+	    SOURCEINFO);
     }
+
+    const std::int32_t templateId = msgHeader.templateId();
+    if (templateId == SessionMessageHeader::sbeTemplateId())
+    {
+	SessionMessageHeader sessionHeader(
+	    buffer.sbeData() + offset + MessageHeader::encodedLength(),
+	    static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+	    msgHeader.blockLength(),
+	    msgHeader.version());
+
+	m_agent.onSessionMessage(
+	    header.position(),
+	    sessionHeader.clusterSessionId(),
+	    sessionHeader.timestamp(),
+	    buffer,
+	    offset + SessionMessageHeader::sbeBlockAndHeaderLength(),
+	    length - SessionMessageHeader::sbeBlockAndHeaderLength(),
+	    header);
+	
+	return ControlledPollAction::CONTINUE;
+    }
+    switch (templateId)
+    {
+	case TimerEvent::sbeTemplateId():
+	    {
+		TimerEvent timerEvent(
+		    buffer.sbeData() + offset + MessageHeader::encodedLength(),
+		    static_cast<std::uint64_t>(length) - MessageHeader::encodedLength(),
+		    msgHeader.blockLength(),
+		    msgHeader.version());
+	    
+		m_agent.onTimerEvent(
+		    header.position(),
+		    timerEvent.correlationId(),
+		    timerEvent.timestamp());
+		break;
+	    }
 
   case SessionOpenEvent::sbeTemplateId():
     {

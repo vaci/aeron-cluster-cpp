@@ -27,7 +27,7 @@ EKAM_FLAGS := -j $(NIX_BUILD_CORES) -l 200
 
 .DEFAULT: release
 
-debug debug-continuous: export CXXFLAGS+=-O0 -ggdb3
+debug debug-continuous: export CXXFLAGS+=-Og -ggdb3
 
 release release-continuous: export CXXFLAGS+=-O2 -DNDEBUG
 

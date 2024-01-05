@@ -217,229 +217,228 @@ constexpr std::int32_t CLUSTER_ACTION_FLAGS_STANDBY_SNAPSHOT = 1;
  * <code>false</code>.
  */
 static constexpr const char *STANDBY_SNAPSHOT_ENABLED_PROP_NAME = "aeron.cluster.standby.snapshot.enabled";
- 
+
 }
 
 class Context
 {
 public:
-  using this_t = Context;
-  Context() {}
+    using this_t = Context;
+    Context() {}
 
-  inline std::shared_ptr<Aeron> aeron()
-  {
-    return m_aeron;
-  }
+    inline std::shared_ptr<Aeron> aeron()
+    {
+	return m_aeron;
+    }
 
-  inline this_t &aeron(std::shared_ptr<Aeron> aeron)
-  {
-    m_aeron = aeron;
-    return *this;
-  }
+    inline this_t &aeron(std::shared_ptr<Aeron> aeron)
+    {
+	m_aeron = aeron;
+	return *this;
+    }
 
-  inline const std::string &aeronDirectoryName() const
-  {
-    return m_aeronDirectoryName;
-  }
+    inline const std::string &aeronDirectoryName() const
+    {
+	return m_aeronDirectoryName;
+    }
 
-  inline this_t &aeronDirectoryName(const std::string &aeronDirectoryName)
-  {
-    m_aeronDirectoryName = aeronDirectoryName;
-    return *this;
-  }
+    inline this_t &aeronDirectoryName(const std::string &aeronDirectoryName)
+    {
+	m_aeronDirectoryName = aeronDirectoryName;
+	return *this;
+    }
 
-  /**
-   * Does this context own the Aeron client and thus takes responsibility for closing it?
-   *
-   * @return does this context own the Aeron client and thus takes responsibility for closing it?
-   */
-  inline bool ownsAeronClient() const
-  {
-    return m_ownsAeronClient;
-  }
+    /**
+     * Does this context own the Aeron client and thus takes responsibility for closing it?
+     *
+     * @return does this context own the Aeron client and thus takes responsibility for closing it?
+     */
+    inline bool ownsAeronClient() const
+    {
+	return m_ownsAeronClient;
+    }
 
-  /**
-   * Does this context own the Aeron client and thus takes responsibility for closing it?
-   *
-   * @param ownsAeronClient does this context own the Aeron client?
-   * @return this for a fluent API.
-   */
-  inline this_t &ownsAeronClient(bool ownsAeronClient)
-  {
-    m_ownsAeronClient = ownsAeronClient;
-    return *this;
-  }
+    /**
+     * Does this context own the Aeron client and thus takes responsibility for closing it?
+     *
+     * @param ownsAeronClient does this context own the Aeron client?
+     * @return this for a fluent API.
+     */
+    inline this_t &ownsAeronClient(bool ownsAeronClient)
+    {
+	m_ownsAeronClient = ownsAeronClient;
+	return *this;
+    }
 
-  /**
-   * Get the error handler that will be called for asynchronous errors.
-   *
-   * @return the error handler that will be called for asynchronous errors.
-   */
-  inline exception_handler_t errorHandler() const
-  {
-    return m_errorHandler;
-  }
+    /**
+     * Get the error handler that will be called for asynchronous errors.
+     *
+     * @return the error handler that will be called for asynchronous errors.
+     */
+    inline exception_handler_t errorHandler() const
+    {
+	return m_errorHandler;
+    }
 
-  /**
-   * Handle errors returned asynchronously from the archive for a control session.
-   *
-   * @param errorHandler method to handle objects of type std::exception.
-   * @return this for a fluent API.
-   */
-  inline this_t &errorHandler(const exception_handler_t &errorHandler)
-  {
-    m_errorHandler = errorHandler;
-    return *this;
-  }
+    /**
+     * Handle errors returned asynchronously from the archive for a control session.
+     *
+     * @param errorHandler method to handle objects of type std::exception.
+     * @return this for a fluent API.
+     */
+    inline this_t &errorHandler(const exception_handler_t &errorHandler)
+    {
+	m_errorHandler = errorHandler;
+	return *this;
+    }
 
+    inline archive::client::Context &archiveContext()
+    {
+	return m_archiveContext;
+    }
 
-  inline archive::client::Context &archiveContext()
-  {
-    return m_archiveContext;
-  }
+    inline this_t &archiveContext(archive::client::Context &archiveContext)
+    {
+	m_archiveContext = archiveContext;
+	return *this;
+    }
 
-  inline this_t &archiveContext(archive::client::Context &archiveContext)
-  {
-    m_archiveContext = archiveContext;
-    return *this;
-  }
+    inline const std::string &clusterDirectoryName() const
+    {
+	return m_clusterDirectoryName;
+    }
 
-  inline const std::string &clusterDirectoryName() const
-  {
-    return m_clusterDirectoryName;
-  }
+    inline this_t &clusterDirectoryName(const std::string &clusterDirectoryName)
+    {
+	m_clusterDirectoryName = clusterDirectoryName;
+	return *this;
+    }
 
-  inline this_t &clusterDirectoryName(const std::string &clusterDirectoryName)
-  {
-    m_clusterDirectoryName = clusterDirectoryName;
-    return *this;
-  }
+    inline std::int32_t serviceId() const
+    {
+	return m_serviceId;
+    }
 
-  inline std::int32_t serviceId() const
-  {
-    return m_serviceId;
-  }
+    inline this_t &serviceId(std::int32_t serviceId)
+    {
+	m_serviceId = serviceId;
+	return *this;
+    }
 
-  inline this_t &serviceId(std::int32_t serviceId)
-  {
-    m_serviceId = serviceId;
-    return *this;
-  }
+    inline const std::string &serviceName() const
+    {
+	return m_serviceName;
+    }
 
-  inline const std::string &serviceName() const
-  {
-    return m_serviceName;
-  }
+    inline this_t &serviceName(const std::string &serviceName)
+    {
+	m_serviceName = serviceName;
+	return *this;
+    }
 
-  inline this_t &serviceName(const std::string &serviceName)
-  {
-    m_serviceName = serviceName;
-    return *this;
-  }
+    inline const std::string &controlChannel() const
+    {
+	return m_controlChannel;
+    }
 
-  inline const std::string &controlChannel() const
-  {
-    return m_controlChannel;
-  }
+    inline this_t &controlChannel(const std::string &controlChannel)
+    {
+	m_controlChannel = controlChannel;
+	return *this;
+    }
 
-  inline this_t &controlChannel(const std::string &controlChannel)
-  {
-    m_controlChannel = controlChannel;
-    return *this;
-  }
+    inline const std::string &replayChannel() const
+    {
+	return m_replayChannel;
+    }
 
-  inline const std::string &replayChannel() const
-  {
-    return m_replayChannel;
-  }
+    inline this_t &replayChannel(const std::string &replayChannel)
+    {
+	m_replayChannel = replayChannel;
+	return *this;
+    }
 
-  inline this_t &replayChannel(const std::string &replayChannel)
-  {
-    m_replayChannel = replayChannel;
-    return *this;
-  }
+    inline std::int32_t replayStreamId() const
+    {
+	return m_replayStreamId;
+    }
 
-  inline std::int32_t replayStreamId() const
-  {
-    return m_replayStreamId;
-  }
+    inline this_t &replayStreamId(std::int32_t streamId)
+    {
+	m_replayStreamId = streamId;
+	return *this;
+    }
 
-  inline this_t &replayStreamId(std::int32_t streamId)
-  {
-    m_replayStreamId = streamId;
-    return *this;
-  }
+    inline const std::string &snapshotChannel() const
+    {
+	return m_snapshotChannel;
+    }
 
-  inline const std::string &snapshotChannel() const
-  {
-    return m_snapshotChannel;
-  }
+    inline this_t &snapshotChannel(const std::string &snapshotChannel)
+    {
+	m_snapshotChannel = snapshotChannel;
+	return *this;
+    }
 
-  inline this_t &snapshotChannel(const std::string &snapshotChannel)
-  {
-    m_snapshotChannel = snapshotChannel;
-    return *this;
-  }
+    inline std::int32_t snapshotStreamId() const
+    {
+	return m_snapshotStreamId;
+    }
 
-  inline std::int32_t snapshotStreamId() const
-  {
-    return m_snapshotStreamId;
-  }
+    inline this_t &snapshotStreamId(std::int32_t streamId)
+    {
+	m_snapshotStreamId = streamId;
+	return *this;
+    }
 
-  inline this_t &snapshotStreamId(std::int32_t streamId)
-  {
-    m_snapshotStreamId = streamId;
-    return *this;
-  }
+    inline std::int32_t consensusModuleStreamId() const
+    {
+	return m_consensusModuleStreamId;
+    }
 
-  inline std::int32_t consensusModuleStreamId() const
-  {
-    return m_consensusModuleStreamId;
-  }
+    inline this_t &consensusModuleStreamId(std::int32_t streamId)
+    {
+	m_consensusModuleStreamId = streamId;
+	return *this;
+    }
 
-  inline this_t &consensusModuleStreamId(std::int32_t streamId)
-  {
-    m_consensusModuleStreamId = streamId;
-    return *this;
-  }
+    inline std::int32_t serviceStreamId() const
+    {
+	return m_serviceStreamId;
+    }
 
-  inline std::int32_t serviceStreamId() const
-  {
-    return m_serviceStreamId;
-  }
+    inline this_t &serviceStreamId(std::int32_t streamId)
+    {
+	m_serviceStreamId = streamId;
+	return *this;
+    }
 
-  inline this_t &serviceStreamId(std::int32_t streamId)
-  {
-    m_serviceStreamId = streamId;
-    return *this;
-  }
+    inline std::shared_ptr<ClusteredService> clusteredService()
+    {
+	return m_clusteredService;
+    }
 
-  inline std::shared_ptr<ClusteredService> clusteredService()
-  {
-    return m_clusteredService;
-  }
+    inline this_t &clusteredService(std::shared_ptr<ClusteredService> service)
+    {
+	m_clusteredService = service;
+	return *this;
+    }
 
-  inline this_t &clusteredService(std::shared_ptr<ClusteredService> service)
-  {
-    m_clusteredService = service;
-    return *this;
-  }
+    inline bool standbySnapshotEnabled() const
+    {
+	return m_standbySnapshotEnabled;
+    }
 
-  inline bool standbySnapshotEnabled() const
-  {
-    return m_standbySnapshotEnabled;
-  }
+    inline this_t &standbySnapshotEnabled(bool standbySnapshotEnabled)
+    {
+	m_standbySnapshotEnabled = standbySnapshotEnabled;
+	return *this;
+    }
 
-  inline this_t &standbySnapshotEnabled(bool standbySnapshotEnabled)
-  {
-    m_standbySnapshotEnabled = standbySnapshotEnabled;
-    return *this;
-  }
+    void conclude();
 
-  void conclude();
-
-  /**
-   * User assigned application version which appended to the log as the appVersion in new leadership events.
+    /**
+     * User assigned application version which appended to the log as the appVersion in new leadership events.
    * <p>
    * This can be validated using {@link org.agrona.SemanticVersion} to ensure only application nodes of the same
    * major version communicate with each other.
@@ -447,107 +446,104 @@ public:
    * @param appVersion for user application.
    * @return this for a fluent API.
    */
-  inline this_t &appVersion(std::int32_t appVersion)
-  {
-    m_appVersion = appVersion;
-    return *this;
-  }
+    inline this_t &appVersion(std::int32_t appVersion)
+    {
+      m_appVersion = appVersion;
+      return *this;
+    }
 
-  /**
-   * User assigned application version which appended to the log as the appVersion in new leadership events.
-   * <p>
-   * This can be validated using {@link org.agrona.SemanticVersion} to ensure only application nodes of the same
-   * major version communicate with each other.
-   *
-   * @return appVersion for user application.
-   */
-  inline std::int32_t appVersion()
-  {
-    return m_appVersion;
-  }
+    /**
+     * User assigned application version which appended to the log as the appVersion in new leadership events.
+     * <p>
+     * This can be validated using {@link org.agrona.SemanticVersion} to ensure only application nodes of the same
+     * major version communicate with each other.
+     *
+     * @return appVersion for user application.
+     */
+    inline std::int32_t appVersion()
+    {
+	return m_appVersion;
+    }
 
-  /**
-   * Set the id for this cluster instance. This must match with the Consensus Module.
-   *
-   * @param clusterId for this clustered instance.
-   * @return this for a fluent API
-   * @see Configuration#CLUSTER_ID_PROP_NAME
-   */
-  inline this_t &clusterId(std::int32_t clusterId)
-  {
-    m_clusterId = clusterId;
-    return *this;
-  }
+    /**
+     * Set the id for this cluster instance. This must match with the Consensus Module.
+     *
+     * @param clusterId for this clustered instance.
+     * @return this for a fluent API
+     * @see Configuration#CLUSTER_ID_PROP_NAME
+     */
+    inline this_t &clusterId(std::int32_t clusterId)
+    {
+	m_clusterId = clusterId;
+	return *this;
+    }
 
-  /**
-   * Get the id for this cluster instance. This must match with the Consensus Module.
-   *
-   * @return the id for this cluster instance.
-   * @see Configuration#CLUSTER_ID_PROP_NAME
-   */
-  inline std::int32_t clusterId()
-  {
-    return m_clusterId;
-  }
+    /**
+     * Get the id for this cluster instance. This must match with the Consensus Module.
+     *
+     * @return the id for this cluster instance.
+     * @see Configuration#CLUSTER_ID_PROP_NAME
+     */
+    inline std::int32_t clusterId()
+    {
+	return m_clusterId;
+    }
 
-  inline bool isRespondingService() const
-  {
-    return m_isRespondingService;
-  }
+    inline bool isRespondingService() const
+    {
+	return m_isRespondingService;
+    }
 
-  
-  inline this_t &isRespondingService(bool isRespondingService)
-  {
-    m_isRespondingService = isRespondingService;
-    return *this;
-  }
+    inline this_t &isRespondingService(bool isRespondingService)
+    {
+	m_isRespondingService = isRespondingService;
+	return *this;
+    }
 
-  inline int logFragmentLimit() const
-  {
-    return m_logFragmentLimit;
-  }
+    inline int logFragmentLimit() const
+    {
+	return m_logFragmentLimit;
+    }
 
-  inline this_t &logFragmentLimit(int logFragmentLimit)
-  {
-    m_logFragmentLimit = logFragmentLimit;
-    return *this;
-  }
+    inline this_t &logFragmentLimit(int logFragmentLimit)
+    {
+	m_logFragmentLimit = logFragmentLimit;
+	return *this;
+    }
 
 private:
-  
-  std::int32_t m_appVersion;
-  std::int32_t m_clusterId = Configuration::CLUSTER_ID_DEFAULT;
-  std::int32_t m_serviceId = Configuration::SERVICE_ID_DEFAULT;
-  std::string m_serviceName = Configuration::SERVICE_NAME_DEFAULT;
-  std::string m_replayChannel = Configuration::REPLAY_CHANNEL_DEFAULT;
-  std::int32_t m_replayStreamId = Configuration::REPLAY_STREAM_ID_DEFAULT;
-  std::string m_controlChannel = Configuration::CONTROL_CHANNEL_DEFAULT;
-  std::int32_t m_consensusModuleStreamId = Configuration::CONSENSUS_MODULE_STREAM_ID_DEFAULT;
-  std::int32_t m_serviceStreamId = Configuration::SERVICE_STREAM_ID_DEFAULT;
-  std::string m_snapshotChannel = Configuration::SNAPSHOT_CHANNEL_DEFAULT;
-  std::int32_t m_snapshotStreamId = Configuration::SNAPSHOT_STREAM_ID_DEFAULT;
-  bool m_isRespondingService = true;
-  int m_logFragmentLimit = Configuration::LOG_FRAGMENT_LIMIT_DEFAULT;
+    std::int32_t m_appVersion;
+    std::int32_t m_clusterId = Configuration::CLUSTER_ID_DEFAULT;
+    std::int32_t m_serviceId = Configuration::SERVICE_ID_DEFAULT;
+    std::string m_serviceName = Configuration::SERVICE_NAME_DEFAULT;
+    std::string m_replayChannel = Configuration::REPLAY_CHANNEL_DEFAULT;
+    std::int32_t m_replayStreamId = Configuration::REPLAY_STREAM_ID_DEFAULT;
+    std::string m_controlChannel = Configuration::CONTROL_CHANNEL_DEFAULT;
+    std::int32_t m_consensusModuleStreamId = Configuration::CONSENSUS_MODULE_STREAM_ID_DEFAULT;
+    std::int32_t m_serviceStreamId = Configuration::SERVICE_STREAM_ID_DEFAULT;
+    std::string m_snapshotChannel = Configuration::SNAPSHOT_CHANNEL_DEFAULT;
+    std::int32_t m_snapshotStreamId = Configuration::SNAPSHOT_STREAM_ID_DEFAULT;
+    bool m_isRespondingService = true;
+    int m_logFragmentLimit = Configuration::LOG_FRAGMENT_LIMIT_DEFAULT;
 
-  exception_handler_t m_errorHandler = nullptr;
-  archive::client::Context m_archiveContext;
-  std::string m_clusterDirectoryName = Configuration::CLUSTER_DIR_DEFAULT;
-  std::string m_aeronDirectoryName = aeron::Context::defaultAeronPath();
-  std::shared_ptr<Aeron> m_aeron;
-  bool m_ownsAeronClient = false;
+    exception_handler_t m_errorHandler = nullptr;
+    archive::client::Context m_archiveContext;
+    std::string m_clusterDirectoryName = Configuration::CLUSTER_DIR_DEFAULT;
+    std::string m_aeronDirectoryName = aeron::Context::defaultAeronPath();
+    std::shared_ptr<Aeron> m_aeron;
+    bool m_ownsAeronClient = false;
 
-  std::shared_ptr<ClusteredService> m_clusteredService;
-  bool m_standbySnapshotEnabled = false;
-  // TODO
-  // ClusterMarkFile m_markFile;
-  
-  inline void applyDefaultParams(std::string &channel) const
-  {
-    std::shared_ptr<ChannelUri> uri = ChannelUri::parse(channel);
-    channel = uri->toString();
-  }
+    std::shared_ptr<ClusteredService> m_clusteredService;
+    bool m_standbySnapshotEnabled = false;
+    // TODO
+    // ClusterMarkFile m_markFile;
+
+    inline void applyDefaultParams(std::string &channel) const
+    {
+	std::shared_ptr<ChannelUri> uri = ChannelUri::parse(channel);
+	channel = uri->toString();
+    }
 };
-
 
 }}}
 
